@@ -1,0 +1,45 @@
+[model]
+model_name_or_path = "attn-signs/Watari-7b-v0"
+
+[datasets]
+dataset = "Vikhrmodels/GrandMaster-PRO-MAX"
+conversation_field = "conversation"
+generate_eval_examples = false
+evaluation_strategy = "steps"
+eval_steps = 300
+dataloader_num_workers = 2
+remove_unused_columns = true
+
+[run]
+save_strategy = "steps"
+save_steps = 300
+save_total_limit = 3
+run_name = "sft-watari-7"
+report_to = "wandb"
+logging_first_step = true
+logging_steps = 1
+output_dir = "models/attn-signs-watari-7"
+project_name = "sft-watari"
+
+[training]
+# resume_from = "/mnt/data/models/attn-signs-watari-7/checkpoint-5400"
+train_only_on_completions = true
+per_device_train_batch_size = 1
+per_device_eval_batch_size = 1
+num_train_epochs = 1
+learning_rate = 0.00004
+gradient_accumulation_steps = 8
+gradient_checkpointing = true
+warmup_steps = 10
+bf16 = true
+seed = 42
+use_peft = false
+attn_implementation = "flash_attention_2"
+
+[tokenizer]
+assistant_message_template =  "<|im_start|>assistant<|im_sep|>"
+pad_token =  "<|endoftext|>"
+eos_token =  "<|im_end|>"
+chat_template = "{% set loop_messages = messages %}{% for message in loop_messages %}{% set content = '<|im_start|>' + message['role'] + '<|im_sep|>'+ message['content'] | trim + '<|im_end|>' %}{{ content }}{% endfor %}{% if add_generation_prompt %}{{ '<|im_start|>assistant<|im_sep|>' }}{% endif %}"
+force_chat_template =  true
+added_special_tokens =  ["<|im_sep|>"]

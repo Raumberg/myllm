@@ -19,12 +19,19 @@
 ### LLM Framework | Toolkit for various training stages
 Initially derived from [Effective LLM Alignment](https://github.com/VikhrModels/effective_llm_alignment/) by VikhrModels.  
 Many credits goes to the Vikhr Team.
+
+# 🚀 New Feature Release: Reinforcement Learning with GRPO! 🎉
+We are excited to announce the release of a new feature: **Reinforcement Learning with GRPO**!  
+This addition allows you to leverage advanced reinforcement learning techniques to make your models excel with reasoning abilities.  
+With GRPO, you can enhance the training process by incorporating reward signals to invoke reasoning capabilities of LLMs. 
+
 ## 🚀 Methods and Stages supported:
 - Supervised Finetuning (Full/LoRa/QLoRa)
 - Distillation (KL Divergence, MSE, Cosine and others)
 - Reinforcement Learning (GRPO, DPO, PPO) # Will be in the future
 - Adapters merging
 - Tokenizer extensions
+
 ## 🛠️ Technical details:
 - Built on top of PyTorch, Transformers, TRL, Peft. No 'magic' libraries like unsloth.
 - Distributed training via Accelerate, FSDP and DeepSpeed (Stage 2, 3).
@@ -33,4 +40,4 @@ Many credits goes to the Vikhr Team.
 - Convenient config management using TOML
 
 > [!IMPORTANT]
-> Please, feel free to contribute to the lib as it is in early development. Let's develop some useful models and tools together! My contacts are in my profile
+> Thank you for your interest in MyLLM! We look forward to your contributions and feedback! 🚀

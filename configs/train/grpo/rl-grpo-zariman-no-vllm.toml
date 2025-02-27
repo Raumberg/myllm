@@ -1,0 +1,63 @@
+
+# HOW TO TRAIN?
+# from the main lib folder (myllm) do:
+# python -m src.train.grpo configs/train/grpo/rl-grpo-zariman.toml
+
+[model]
+model_name_or_path = "attn-signs/Zariman-R-7b-v0"
+
+[datasets]
+dataset = "d0rj/gsm8k-ru"
+problem_field = "question"
+solution_field = "answer"
+generate_eval_examples = false
+evaluation_strategy = "steps"
+eval_steps = 300
+dataloader_num_workers = 2
+remove_unused_columns = false
+test_size = 0.1
+
+[run]
+save_strategy = "steps"
+save_steps = 300
+save_total_limit = 3
+run_name = "rl-zariman-7"
+report_to = "wandb"
+logging_first_step = true
+logging_steps = 1
+output_dir = "models/attn-signs-zariman-7"
+project_name = "rl-zariman"
+
+[training]
+train_only_on_completions = false
+per_device_train_batch_size = 1
+per_device_eval_batch_size = 1
+num_train_epochs = 1
+learning_rate = 0.00004
+gradient_accumulation_steps = 16
+gradient_checkpointing = true
+bf16 = true
+seed = 42
+use_peft = false
+attn_implementation = "flash_attention_2"
+
+[grpo]
+use_vllm = false
+adam_beta1 = 0.9
+adam_beta2 = 0.99
+weight_decay = 0.1
+temperature = 0.4
+num_generations = 8
+max_prompt_length = 256
+max_completion_length = 512
+max_seq_length = 512
+max_grad_norm = 0.1
+
+[tokenizer]
+system_prompt = "Ты полезный ассистент. Отвечай на вопросы, сохраняя следующую структуру: <Thought> Твои мысли и рассуждения </Thought> <output> Твой конечный ответ </output>"
+assistant_message_template =  "<|im_start|>assistant<|im_sep|>"
+pad_token =  "<|endoftext|>"
+eos_token =  "<|im_end|>"
+chat_template = "{% set loop_messages = messages %}{% for message in loop_messages %}{% set content = '<|im_start|>' + message['role'] + '<|im_sep|>'+ message['content'] | trim + '<|im_end|>' %}{{ content }}{% endfor %}{% if add_generation_prompt %}{{ '<|im_start|>assistant<|im_sep|>' }}{% endif %}"
+force_chat_template =  true
+added_special_tokens =  ["<|im_sep|>"]

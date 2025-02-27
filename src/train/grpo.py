@@ -1,5 +1,3 @@
-# FUTURE FEATURE
-
 import multiprocessing
 import os
 import random
@@ -33,6 +31,9 @@ os.environ['CLEARML_TASK'] = LOGGING_TASK_NAME
 def main():
     parser = ArgParser((GRPOScriptArguments, GRPOConfig, ModelConfig))
     args, grpo_config, model_config = parser.parse()
+    print(f'\n\n\nARGS : {args}')
+    print(f'\n\n\nGRPO : {grpo_config}')
+    print(f'\n\n\nMODEL : {model_config}')
 
     setup_logging(logger, grpo_config)
     set_seed(grpo_config.seed)
@@ -73,30 +74,6 @@ def main():
     ################
     if not args.system_prompt: warnings.warn("System Prompt is not set in your configuration file, this can cause reasoning biases.")
 
-    # def process_row(row, add_gen_prompt=False):
-    #     """
-    #     Process a single row of data to construct a prompt without including any conversation history.
-
-    #     Args:
-    #         row (dict): A dictionary representing a single row of data.
-    #         add_gen_prompt (bool): A flag indicating whether to add a generation prompt.
-
-    #     Returns:
-    #         dict: A dictionary containing tokenized input IDs, attention masks, and other relevant information.
-    #     """
-    #     system_message = [{'role': 'system', 'content': args.system_prompt}] if args.system_prompt else []
-
-    #     constructed_prompt = tokenizer.apply_chat_template(
-    #         system_message,
-    #         tokenize=False,
-    #         add_generation_prompt=add_gen_prompt
-    #     )
-
-    #     if tokenizer.bos_token is not None and constructed_prompt.startswith(tokenizer.bos_token):
-    #         constructed_prompt = constructed_prompt[len(tokenizer.bos_token):]
-
-    #     return tokenizer(constructed_prompt, truncation=True, padding=True, max_length=grpo_config.max_seq_length)
-
     ds = load_datasets(args.dataset, args.test_size, args.dataset_ratio)
 
     generate_dataset = ds['test']
@@ -126,8 +103,6 @@ def main():
         print(train_dataset[0])
         print('Example from test dataset:')
         print(eval_dataset[0])
-        # print('Example from gen dataset:')
-        # print(generate_dataset[0])
 
     PartialState().wait_for_everyone()
 

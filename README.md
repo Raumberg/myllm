@@ -39,5 +39,19 @@ With GRPO, you can enhance the training process by incorporating reward signals 
 - Logging options: wandb, clearml
 - Convenient config management using TOML
 
+## How to train?
+- Everything is available from the root (MyLLM) folder. 
+- What you need to do is start any desired script using accelerate:  
+```bash
+# ~/../myllm >
+accelerate launch --config_file <path-to-cfg.yaml> <path-to-script.py> <path-to-model-cfg.toml>
+# example SFT:
+accelerate launch --config_file configs/accelerate/stage3_config.yaml src/train/sft.py configs/train/sft/full-sft-watari.toml
+# example GRPO:
+accelerate launch --config_file configs/accelerate/grpo_deepspeed.yaml src/train/grpo.py configs/train/grpo/rl-grpo-zariman-no-vllm.toml
+```  
+Note:  
+GRPO scripts can be unstable, the work is still going on. If you encounter any errors, please, open an Issue.
+
 > [!IMPORTANT]
 > Thank you for your interest in MyLLM! We look forward to your contributions and feedback! 🚀

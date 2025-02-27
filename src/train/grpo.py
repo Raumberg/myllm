@@ -81,15 +81,18 @@ def main():
     signature_columns = ["input_ids", "labels", "attention_mask"]
     extra_columns = list(set(ds['train'].column_names) - set(signature_columns))
 
+    def process_row(row):
+        return {
+            "prompt": [
+                {'role': 'system', 'content': args.system_prompt},
+                {'role': 'user', 'content': row[args.problem_field]} 
+                ],
+            "answer": row[args.problem_field]
+        }
+
     with PartialState().local_main_process_first():
         ds = ds.map(
-            lambda row: {
-                'prompt': [
-                        {'role': 'system', 'content': args.system_prompt},
-                        {'role': 'user', 'content': row[args.problem_field]}
-                ],
-                'answer': row[args.solution_field]
-            },
+            process_row,
             num_proc=multiprocessing.cpu_count(),
             load_from_cache_file=True,
             remove_columns=extra_columns

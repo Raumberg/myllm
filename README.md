@@ -28,7 +28,7 @@ With GRPO, you can enhance the training process by incorporating reward signals 
 ## 🚀 Methods and Stages supported:
 - Supervised Finetuning (Full/LoRa/QLoRa)
 - Distillation (KL Divergence, MSE, Cosine and others)
-- Reinforcement Learning (GRPO, DPO, PPO) # Will be in the future
+- Reinforcement Learning (GRPO, DPO, PPO)
 - Adapters merging
 - Tokenizer extensions
 

@@ -3,7 +3,7 @@
         MyLLM
     </h1>
     <div style="border: 10px solid; border-image: linear-gradient(to right, black, white) 1; padding: 10px; display: inline-block;">
-        <img src="assets/myllm.jpg" alt="gallery" width="600"/>
+        <img src="assets/myllm.png" alt="gallery" width="600"/>
     </div>
     <br>
     <br>

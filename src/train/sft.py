@@ -183,7 +183,7 @@ def main():
         callbacks=[generate_callback] if args.generate_eval_examples else []
     )
 
-    trainer.train() if not args.resume_from else trainer.train(sft_config.model_name_or_path)
+    trainer.train() if not args.resume_from else trainer.train(model_config.model_name_or_path)
     trainer.save_model(sft_config.output_dir)
 
 

@@ -3,7 +3,7 @@
         MyLLM
     </h1>
     <div style="border: 10px solid; border-image: linear-gradient(to right, black, white) 1; padding: 10px; display: inline-block;">
-        <img src="assets/torch.jpg" alt="gallery" width="500"/>
+        <img src="assets/myllm.png" alt="gallery" width="600"/>
     </div>
     <br>
     <br>
@@ -28,7 +28,7 @@ With GRPO, you can enhance the training process by incorporating reward signals 
 ## 🚀 Methods and Stages supported:
 - Supervised Finetuning (Full/LoRa/QLoRa)
 - Distillation (KL Divergence, MSE, Cosine and others)
-- Reinforcement Learning (GRPO, DPO, PPO) # Will be in the future
+- Reinforcement Learning (GRPO, DPO, PPO)
 - Adapters merging
 - Tokenizer extensions
 

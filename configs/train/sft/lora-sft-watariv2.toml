@@ -1,0 +1,74 @@
+[model]
+model_name_or_path = "attn-signs/watari-32-base-extended"
+
+[datasets]
+dataset = "Vikhrmodels/GrandMaster-PRO-MAX"
+conversation_field = "conversation"
+generate_eval_examples = false
+eval_strategy = "steps"
+eval_steps = 500
+dataloader_num_workers = 2
+remove_unused_columns = true
+construct_history = false
+
+[run]
+save_strategy = "steps"
+save_steps = 500
+save_total_limit = 3
+run_name = "sft-watari-32"
+report_to = "wandb"
+logging_first_step = true
+logging_steps = 1
+output_dir = "models/attn-signs-watari-32"
+project_name = "sft-lora-watari"
+resume_from = false
+
+[training]
+train_only_on_completions = false
+per_device_train_batch_size = 1
+per_device_eval_batch_size = 1
+num_train_epochs = 1
+learning_rate = 0.00004
+gradient_accumulation_steps = 8
+gradient_checkpointing = true
+max_seq_length = 32768
+warmup_steps = 10
+bf16 = true
+seed = 42
+use_peft = true
+attn_implementation = "flash_attention_2"
+
+[lora]
+lora_target_modules = [
+    "k_proj",
+    "v_proj",
+    "q_proj",
+    "o_proj",
+    "gate_proj",
+    "up_proj",
+    "down_proj",
+]
+lora_r = 128
+lora_alpha = 256
+
+[tokenizer]
+assistant_message_template =  "<|im_start|>assistant\\n"
+pad_token =  "<|endoftext|>"
+eos_token =  "<|im_end|>"
+chat_template = "{%- if tools %}\n    {{- '<|im_start|>system\\n' }}\n    {%- if messages[0]['role'] == 'system' %}\n        {{- messages[0]['content'] }}\n    {%- else %}\n        {{- 'Ты Ватари, созданный Attention Signs. Ты умная нейронная сеть, которая старается помочь пользователю во всём.' }}\n    {%- endif %}\n    {{- \"\\n\\n# Tools\\n\\nТы можешь вызывать специальные функции, чтобы помочь пользователю или выполнить поставленную задачу.\\n\\nТебе доступны сигнатуры функции внутри конструкции <tools></tools> XML тэги:\\n<tools>\" }}\n    {%- for tool in tools %}\n        {{- \"\\n\" }}\n        {{- tool | tojson }}\n    {%- endfor %}\n    {{- \"\\n</tools>\\n\\nДля каждого вызова функции, верни json объект с именем и аргументами функции внутри конструкции <tool_call></tool_call> XML тэги:\\n<tool_call>\\n{\\\"name\\\": <function-name>, \\\"arguments\\\": <args-json-object>}\\n</tool_call><|im_end|>\\n\" }}\n{%- else %}\n    {%- if messages[0]['role'] == 'system' %}\n        {{- '<|im_start|>system\\n' + messages[0]['content'] + '<|im_end|>\\n' }}\n    {%- endif %}\n{%- endif %}\n{%- for message in messages %}\n    {%- if (message.role == \"user\") or (message.role == \"system\" and not loop.first) or (message.role == \"assistant\" and not message.tool_calls) %}\n        {{- '<|im_start|>' + message.role + '\\n' + message.content + '<|im_end|>' + '\\n' }}\n    {%- elif message.role == \"assistant\" %}\n        {{- '<|im_start|>' + message.role }}\n        {%- if message.content %}\n            {{- '\\n' + message.content }}\n        {%- endif %}\n        {%- for tool_call in message.tool_calls %}\n            {%- if tool_call.function is defined %}\n                {%- set tool_call = tool_call.function %}\n            {%- endif %}\n            {{- '\\n<tool_call>\\n{\"name\": \"' }}\n            {{- tool_call.name }}\n            {{- '\", \"arguments\": ' }}\n            {{- tool_call.arguments | tojson }}\n            {{- '}\\n</tool_call>' }}\n        {%- endfor %}\n        {{- '<|im_end|>\\n' }}\n    {%- elif message.role == \"tool\" %}\n        {%- if (loop.index0 == 0) or (messages[loop.index0 - 1].role != \"tool\") %}\n            {{- '<|im_start|>user' }}\n        {%- endif %}\n        {{- '\\n<tool_response>\\n' }}\n        {{- message.content }}\n        {{- '\\n</tool_response>' }}\n        {%- if loop.last or (messages[loop.index0 + 1].role != \"tool\") %}\n            {{- '<|im_end|>\\n' }}\n        {%- endif %}\n    {%- endif %}\n{%- endfor %}\n{%- if add_generation_prompt %}\n    {{- '<|im_start|>assistant\\n' }}\n{%- endif %}\n"
+force_chat_template =  true
+added_special_tokens =  [
+    "<|im_start|>",
+    "<|im_end|>",
+    "<|object_ref_start|>",
+    "<|object_ref_end|>",
+    "<|box_start|>",
+    "<|box_end|>",
+    "<|quad_start|>",
+    "<|quad_end|>",
+    "<|vision_start|>",
+    "<|vision_end|>",
+    "<|vision_pad|>",
+    "<|image_pad|>",
+    "<|video_pad|>"
+    ]

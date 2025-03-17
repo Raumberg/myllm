@@ -51,8 +51,12 @@ def main():
         attn_implementation=model_config.attn_implementation
     )
 
+    total_grad_params = 0
     for name, parameter in model.named_parameters():
+        if parameter.requires_grad: total_grad_params += 1
         parameter.requires_grad = not model_config.use_peft
+
+    print(f'Total parameters with grads: {total_grad_params}')
 
     peft_config = get_peft_config(model_config)
 
@@ -75,8 +79,6 @@ def main():
     if not args.system_prompt: warnings.warn("System Prompt is not set in your configuration file, this can cause reasoning biases.")
 
     ds = load_datasets(args.dataset, args.test_size, args.dataset_ratio)
-
-    generate_dataset = ds['test']
 
     signature_columns = ["input_ids", "labels", "attention_mask"]
     extra_columns = list(set(ds['train'].column_names) - set(signature_columns))

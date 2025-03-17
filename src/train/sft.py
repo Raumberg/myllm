@@ -1,10 +1,15 @@
-import multiprocessing
+# import multiprocessing
 import os
 import random
 import uuid
 import warnings
 
+from multiprocessing import cpu_count
+from functools import partial
+
 import torch
+from torchsummary import summary
+
 from accelerate import PartialState
 from accelerate.logging import get_logger
 from transformers import AutoModelForCausalLM, AutoTokenizer, set_seed
@@ -13,12 +18,17 @@ from trl import SFTTrainer, SFTConfig, ModelConfig, get_peft_config
 
 from src.utils.callbacks import GenerateExamplesCallback
 from src.utils.collators import DataCollatorForCompletionOnlyLM
-from src.utils.configurators import ArgParser
+from src.utils.configurators import ArgParser, tabula
 from src.utils.scriptargs import SFTScriptArguments
 
-from src.utils.data import load_datasets
+from src.utils.data import load_datasets, default_row_processor, history_row_processor
 from src.utils.logs import setup_logging
 from src.utils.model import setup_model_and_tokenizer
+from src.utils.kernels import get_liger_kernel
+
+from src.utils.stdout import print_configs, inspect_model
+
+from time import sleep
 
 logger = get_logger(__name__)
 
@@ -30,49 +40,53 @@ os.environ['CLEARML_TASK'] = LOGGING_TASK_NAME
 
 
 def main():
+    # ================== #
+    # Parsers
+    # ================== #
     parser = ArgParser((SFTScriptArguments, SFTConfig, ModelConfig))
     args, sft_config, model_config = parser.parse()
 
+    # ================== #
+    # stdout information
+    # ================== #
+    if PartialState().is_main_process:
+        print_configs(args, sft_config, model_config, 10)
+
+    # ================== #
+    # Logging
+    # ================== #
     setup_logging(logger, sft_config)
     set_seed(sft_config.seed)
 
+    # ================== #
+    # Environment
+    # ================== #
     os.environ["WANDB_PROJECT"] = args.project_name
     os.environ['CLEARML_PROJECT'] = args.project_name
 
-    ################
+    # ================== #
     # Model & Tokenizer
-    ################
+    # ================== #
     tokenizer = AutoTokenizer.from_pretrained(model_config.model_name_or_path)
     model = AutoModelForCausalLM.from_pretrained(
         model_config.model_name_or_path,
         torch_dtype=torch.bfloat16 if sft_config.bf16 else torch.float16,
-        # max_position_embeddings=sft_config.max_seq_length,
         attn_implementation=model_config.attn_implementation
     )
-    if sft_config.use_liger:
-        from liger_kernel.transformers import apply_liger_kernel_to_llama, apply_liger_kernel_to_mistral, apply_liger_kernel_to_qwen2
-        apply_liger_kernel_to_llama(
-            rope=False,
-            swiglu=True,
-            cross_entropy=False,
-            fused_linear_cross_entropy=True,
-            rms_norm=False
-        )
-        apply_liger_kernel_to_mistral(
-            rope=False,
-            swiglu=True,
-            cross_entropy=False,
-            fused_linear_cross_entropy=True,
-            rms_norm=False
-        )
-        apply_liger_kernel_to_qwen2(
-            rope=False,
-            swiglu=True,
-            cross_entropy=False,
-            fused_linear_cross_entropy=True,
-            rms_norm=False
-        )
 
+    if PartialState().is_main_process:
+        print("Model Inspection:\n" + inspect_model(model, tokenizer))
+        sleep(10)
+
+    # ================== #
+    # Fusion / Kernels
+    # ================== #
+    if sft_config.use_liger:
+        get_liger_kernel()
+
+    # ================== #
+    # Parameters
+    # ================== #
     for name, parameter in model.named_parameters():
         parameter.requires_grad = not model_config.use_peft
 
@@ -90,30 +104,18 @@ def main():
         print(f'Tokenizer: {tokenizer}')
         print(f'Model config: {model.config}')
         print(f"Pad Token: {tokenizer.pad_token}, EOS Token: {tokenizer.eos_token}, BOS Token: {tokenizer.bos_token}")
+        sleep(5)
 
-    ################
+    # ================== #
     # Dataset
-    ################
-    def process_row(row, add_gen_prompt=False):
-        system_message = [{'role': 'system', 'content': args.system_prompt}] if args.system_prompt else []
-        history = row[args.conversation_field] if not add_gen_prompt else row[args.conversation_field][:-1]
-        if not args.model_support_system_role and history[0]["role"] == "system":
-            if len(history) > 1 and history[1]["role"] == "user":
-                # add sys prompt to first user message
-                history[1]["content"] = history[0]["content"] + "\n" + history[1]["content"]
-                history = history[1:]
-            else:
-                history[0]["role"] = "user"
-        
-        constructed_prompt = tokenizer.apply_chat_template(
-            system_message + history,
-            tokenize=False,
-            add_generation_prompt=add_gen_prompt
-        )
-        if tokenizer.bos_token is not None:
-            if constructed_prompt.startswith(tokenizer.bos_token):  # Remove extra bos token
-                constructed_prompt = constructed_prompt[len(tokenizer.bos_token):]
-        return tokenizer(constructed_prompt, truncation=True, padding=True, max_length=sft_config.max_seq_length)
+    # ================== #
+    row_processor = partial(
+        history_row_processor if args.construct_history else default_row_processor,
+        args=args,
+        training_config=sft_config,
+        tokenizer=tokenizer,
+        add_gen_prompt=False
+    )
 
     ds = load_datasets(args.dataset, args.test_size, args.dataset_ratio)
 
@@ -124,14 +126,14 @@ def main():
 
     with PartialState().local_main_process_first():
         ds = ds.map(
-            process_row,
-            num_proc=multiprocessing.cpu_count(),
+            row_processor,
+            num_proc=cpu_count(),
             load_from_cache_file=True,
             remove_columns=extra_columns
         )
         generate_dataset = generate_dataset.map(
-            lambda row: process_row(row, add_gen_prompt=True),
-            num_proc=multiprocessing.cpu_count(),
+            lambda row: row_processor(row, add_gen_prompt=True),
+            num_proc=cpu_count(),
             load_from_cache_file=True,
             remove_columns=extra_columns
         )
@@ -146,6 +148,7 @@ def main():
         print(eval_dataset[0])
         print('Example from gen dataset:')
         print(generate_dataset[0])
+        sleep(5)
 
     collator = DataCollatorForCompletionOnlyLM(
         response_prompt_template=args.assistant_message_template,
@@ -166,21 +169,21 @@ def main():
         "skip_prepare_dataset": True
     }
 
-    ################
-    # Training
-    ################
+    # ================== #
+    # Trainer
+    # ================== #
     trainer = SFTTrainer(
         model,
         args=sft_config,
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
-        tokenizer=tokenizer,
+        processing_class=tokenizer,
         peft_config=peft_config,
         data_collator=collator,
         callbacks=[generate_callback] if args.generate_eval_examples else []
     )
 
-    trainer.train() if not args.resume_from else trainer.train(args.resume_from)
+    trainer.train() if not args.resume_from else trainer.train(sft_config.model_name_or_path)
     trainer.save_model(sft_config.output_dir)
 
 

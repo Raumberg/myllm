@@ -8,6 +8,10 @@ class SFTScriptArguments(MetaArguments):
         default="prompt",
         metadata={"help": "Field in dataset with conversations (in list of dicts format)"}
     )
+    construct_history: bool | None = field(
+        default=False,
+        metadata={"help": "Whether to construct history from conversation"}
+    )
     system_prompt: str | None = field(
         default=None,
         metadata={"help": "Will use system prompt if there is no one in dialogue, set to None to disable"}

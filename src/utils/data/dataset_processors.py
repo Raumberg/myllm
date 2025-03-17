@@ -57,7 +57,6 @@ def default_row_processor(
         tokenize=False,
         add_generation_prompt=add_gen_prompt
     )
-    print(constructed_prompt)
 
     # Handle cases where apply_chat_template might return list of strings
     if isinstance(constructed_prompt, list):

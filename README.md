@@ -20,21 +20,21 @@
 Initially derived from [Effective LLM Alignment](https://github.com/VikhrModels/effective_llm_alignment/) by VikhrModels.  
 Many credits goes to the Vikhr Team.
 
-## 🚀 Methods and Stages supported:
+## 🚀 [Methods and Stages supported]:
 - Supervised Finetuning (Full/LoRa/QLoRa)
 - Distillation (KL Divergence, MSE, Cosine and others)
 - Reinforcement Learning (GRPO, DPO, PPO)
 - Adapters merging
 - Tokenizer extensions
 
-## 🛠️ Technical details:
+## 🛠️ [Technical details]:
 - Built on top of PyTorch, Transformers, TRL, Peft. No 'magic' libraries like unsloth.
 - Distributed training via Accelerate, FSDP and DeepSpeed (Stage 2, 3).
 - Acceleration with vLLM, FlashAttn, Liger Kernels and fusion.
 - Logging options: wandb, clearml
 - Convenient config management using TOML
 
-## How can I use the framework?
+## 🧠 [Training an LLM]
 - Everything is available from the root (MyLLM) folder. 
 - What you need to do is start any desired script using accelerate:  
 ```bash
@@ -45,10 +45,11 @@ accelerate launch --config_file configs/accelerate/stage3_config.yaml src/train/
 # example GRPO:
 accelerate launch --config_file configs/accelerate/grpo_deepspeed.yaml src/train/grpo.py configs/train/grpo/rl-grpo-zariman-no-vllm.toml
 ```  
-Note:  
-GRPO scripts can be unstable, the work is still going on. If you encounter any errors, please, open an Issue.
+   
+> **⚠️ Disclaimer:**  
+> GRPO scripts can be unstable, the work is still going on. If you encounter any errors, please, open an Issue.  
 
-## Useful script:
+## 📟 [Useful scripts]:
 The folder `myllm/src/helpers` contains useful scripts that you can utilize for your models:
 - Merge your LoRA adapters with original model using `adapters.py` by:
 ```bash
@@ -95,6 +96,8 @@ python adapters.py merge --source ../../models/attn-signs-watari-32/checkpoint-5
     ```
     - **data_processors**: moved all tokenizer processing functions to a separate module. Added support for default processing and history processing.
     - **liger**: moved all liger kernels to a separate module
+- `resume_from` now is a **boolean flag** instead of a string representing a model path. When providing `resume_from=true`, the initial model_name_or_path should be the path to your local checkpoint.
+- Added `construct_history` **boolean flag** that constructs history out of the dataset. If `construct_history=false`, the script will use `default_row_processor` function.
 
 Overall, the training scripts are becoming more easy to read and user-friendly, outsourcing difficult tasks under the hood.
 

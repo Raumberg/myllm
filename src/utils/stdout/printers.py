@@ -1,6 +1,8 @@
-from src.utils.configurators import tabula
+from .tabula import tabula
+
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
+from tabulate import tabulate
 from time import sleep
 
 
@@ -39,3 +41,17 @@ def print_configs(ScriptArguments: dict, TrainingArguments: dict, ModelConfig: d
     sleep(secs)
     print(f'\n\nModel config:\n{tabula(ModelConfig.__dict__)}\n\n')
     sleep(secs)
+
+def print_table(keys: list, values: list) -> str:
+    if len(keys) != len(values):
+        raise ValueError("Keys and values must have the same length.")
+
+    table = []
+    for key, value in zip(keys, values):
+        table.append([key, value])
+    
+    return print(tabulate(
+        table,
+        headers=["Config key", "Config value"],
+        tablefmt="grid"
+    ))

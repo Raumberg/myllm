@@ -2,7 +2,8 @@ import numpy as np
 import warnings
 from accelerate import PartialState
 from datasets import load_dataset, DatasetDict, Dataset, concatenate_datasets
-from typing import Optional, Union
+from typing import Optional, Union, Callable
+from functools import partial
 
 def _load_dataset_from_path(path: str, test_size: Optional[float] = None) -> DatasetDict:
     """
@@ -131,3 +132,25 @@ def prepare_generative_row(row: dict, tokenizer, max_length: int) -> dict:
     )
     
     return tokenizer(constructed_prompt, truncation=True, padding=True, max_length=max_length, add_special_tokens=False)
+
+# def load_and_prepare(args: dict, processing_function: Callable) -> Dataset:
+#     ds = load_datasets(args.dataset, args.test_size, args.dataset_ratio)
+
+#     signature_columns = ["input_ids", "labels", "attention_mask"]
+#     extra_columns = list(set(ds['train'].column_names) - set(signature_columns))
+    
+#     row_processor = partial(
+#         processing_function,
+#         args=args
+#     )
+
+#     with PartialState().local_main_process_first():
+#         ds = ds.map(
+#             row_processor,
+#             num_proc=multiprocessing.cpu_count(),
+#             load_from_cache_file=True,
+#             remove_columns=extra_columns
+#         )
+
+#     train_dataset = ds["train"]
+#     eval_dataset = ds["test"]

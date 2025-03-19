@@ -262,30 +262,7 @@ def main():
                 logs[key] = torch.tensor(metrics).mean().item()
             del self._stored_metrics[train_eval]
             return super().log(logs)
-
-        # def evaluate(self, eval_dataset=None, ignore_keys=None, metric_key_prefix="eval"):
-        #     self.model = self.model.eval()
-        #     eval_dataloader = self.get_eval_dataloader(eval_dataset)
-        #     generation_results = []
-
-        #     for step, inputs in enumerate(eval_dataloader):
-        #         inputs = self._prepare_inputs(inputs)
-        #         print(inputs['input_ids'].shape)
-
-        #         # Sample a few inputs to generate text
-        #         if step < 5:  # Example: limit to first 5 steps for demonstration
-        #             input_ids = inputs['input_ids'][:1]  # Take one example
-        #             generated_ids = self.model.generate(input_ids=input_ids, do_sample=False, max_new_tokens=128)
-        #             generated_text = self.tokenizer.decode(generated_ids[0], skip_special_tokens=True)
-        #             generation_results.append(generated_text)
-
-        #             # Log generated text to wandb
-        #             self.log({f"generated_text_step_{step}": generated_text})
-
-        #     metrics = super().evaluate(eval_dataset, ignore_keys=ignore_keys, metric_key_prefix=metric_key_prefix)
-
-        #     return metrics
-
+    
     # Set up the data collator
     data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)
 

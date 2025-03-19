@@ -72,3 +72,12 @@ def default_row_processor(
         padding=True,
         max_length=training_config.max_seq_length
     )
+
+def grpo_row_processor(row, args):
+        return {
+            "prompt": [
+                {'role': 'system', 'content': args.system_prompt},
+                {'role': 'user', 'content': row[args.problem_field]} 
+                ],
+            "answer": row[args.problem_field]
+        }

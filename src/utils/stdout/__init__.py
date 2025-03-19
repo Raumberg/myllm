@@ -1,1 +1,1 @@
-from .printers import print_configs, inspect_model
+from .printers import print_configs, inspect_model, print_table

@@ -8,7 +8,6 @@ from multiprocessing import cpu_count
 from functools import partial
 
 import torch
-from torchsummary import summary
 
 from accelerate import PartialState
 from accelerate.logging import get_logger
@@ -18,7 +17,7 @@ from trl import SFTTrainer, SFTConfig, ModelConfig, get_peft_config
 
 from src.utils.callbacks import GenerateExamplesCallback
 from src.utils.collators import DataCollatorForCompletionOnlyLM
-from src.utils.configurators import ArgParser, tabula
+from src.utils.configurators import ArgParser
 from src.utils.scriptargs import SFTScriptArguments
 
 from src.utils.data import load_datasets, default_row_processor, history_row_processor
@@ -26,7 +25,7 @@ from src.utils.logs import setup_logging
 from src.utils.model import setup_model_and_tokenizer
 from src.utils.kernels import get_liger_kernel
 
-from src.utils.stdout import print_configs, inspect_model
+from src.utils.stdout import print_configs, inspect_model, print_table
 
 from time import sleep
 
@@ -101,9 +100,16 @@ def main():
     setup_model_and_tokenizer(args, model, tokenizer, sft_config.max_seq_length)
 
     if PartialState().is_main_process:
-        print(f'Tokenizer: {tokenizer}')
-        print(f'Model config: {model.config}')
-        print(f"Pad Token: {tokenizer.pad_token}, EOS Token: {tokenizer.eos_token}, BOS Token: {tokenizer.bos_token}")
+        k, v = [
+                'Pad token:',
+                'EOS token:',
+                'BOS token:'
+            ], [
+                tokenizer.pad_token,
+                tokenizer.eos_token,
+                tokenizer.bos_token,
+            ]
+        print_table(k, v)
         sleep(5)
 
     # ================== #
@@ -142,12 +148,9 @@ def main():
     eval_dataset = ds["test"]
 
     if PartialState().is_main_process:
-        print('Example from train dataset:')
-        print(train_dataset[0])
-        print('Example from test dataset:')
-        print(eval_dataset[0])
-        print('Example from gen dataset:')
-        print(generate_dataset[0])
+        print(f'Example from [TRAIN]: {train_dataset[0]}')
+        print(f'Example from [TEST]: {eval_dataset[0]}')
+        print(f'Example from [TRAIN]: {generate_dataset[0]}')
         sleep(5)
 
     collator = DataCollatorForCompletionOnlyLM(

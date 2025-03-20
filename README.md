@@ -97,9 +97,20 @@ python adapters.py merge --source ../../models/attn-signs-watari-32/checkpoint-5
     - **data_processors**: moved all tokenizer processing functions to a separate module. Added support for default processing and history processing.
     - **liger**: moved all liger kernels to a separate module
 - `resume_from` now is a **boolean flag** instead of a string representing a model path. When providing `resume_from=true`, the initial model_name_or_path should be the path to your local checkpoint.
-- Added `construct_history` **boolean flag** that constructs history out of the dataset. If `construct_history=false`, the script will use `default_row_processor` function.
+- Added `construct_history` **boolean flag** that constructs history out of the dataset. If `construct_history=false`, the script will use `default_row_processor` function. 
 
 Overall, the training scripts are becoming more easy to read and user-friendly, outsourcing difficult tasks under the hood.
+
+# Nightly | Development functions:
+- Added `fusion` in which native / custom CUDA/Triton kernels will be developed
+- Added Fused Dynamic Tanh kernel, Torch Interface and patching function.  
+What is **Dynamic Tanh**?
+Dynamic Tanh is the most recent discovery by Meta, attempting to replace LayerNorm with Tanh() to speed up training stages and minimize total parameters.  
+DynTanh is a novel approach, thus, can be unstable (until we release the final version). At the same time it is also a debatable method for now.  
+```
+Based on arxiv paper: https://www.alphaxiv.org/abs/2503.10622
+Based on authors code: https://github.com/jiachenzhu/DyT/tree/main
+```
 
 > [!IMPORTANT]
 > Thank you for your interest in MyLLM! We look forward to your contributions and feedback! 🚀

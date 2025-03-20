@@ -1,32 +1,44 @@
-# import multiprocessing
+# | STD | 
 import os
 import random
 import uuid
 import warnings
 
+# | UTILS | 
 from multiprocessing import cpu_count
 from functools import partial
 
+# | TORCH |
 import torch
 
+# | TRANSFORMERS / DATAPARALLEL | 
 from accelerate import PartialState
 from accelerate.logging import get_logger
 from transformers import AutoModelForCausalLM, AutoTokenizer, set_seed
 from transformers.integrations import is_deepspeed_zero3_enabled
 from trl import SFTTrainer, SFTConfig, ModelConfig, get_peft_config
 
-from src.utils.callbacks import GenerateExamplesCallback
-from src.utils.collators import DataCollatorForCompletionOnlyLM
+# | PARSERS |
 from src.utils.configurators import ArgParser
 from src.utils.scriptargs import SFTScriptArguments
 
+# | CALLBACKS | 
+from src.utils.callbacks import GenerateExamplesCallback
+
+# | DATA |
 from src.utils.data import load_datasets, default_row_processor, history_row_processor
 from src.utils.logs import setup_logging
 from src.utils.model import setup_model_and_tokenizer
-from src.utils.kernels import get_liger_kernel
+from src.utils.collators import DataCollatorForCompletionOnlyLM
 
+# | FUSION |
+from src.utils.kernels import get_liger_kernel
+from src.fusion.dyntanh import getFusedDynTanh, FusedDynTanhPatch
+
+# | STDOUT | 
 from src.utils.stdout import print_configs, inspect_model, print_table
 
+# | MISC |
 from time import sleep
 
 logger = get_logger(__name__)
@@ -82,6 +94,20 @@ def main():
     # ================== #
     if sft_config.use_liger:
         get_liger_kernel()
+    if args.use_dyntanh:
+        model = getFusedDynTanh()
+    if args.patch_dyntanh:
+        model = FusedDynTanhPatch(
+            model=model,
+            copy_params=True,
+            verbose=True,
+            dtype=torch.bfloat16 if sft_config.bf16 else torch.float16
+        )
+
+    if PartialState().is_main_process and args.use_dyntanh:
+        for name, param in model.named_parameters():
+            if "alpha" in name and param.grad is None:
+                warnings.warn(f"Alpha parameter {name} has no grad!")
 
     # ================== #
     # Parameters
@@ -150,7 +176,7 @@ def main():
     if PartialState().is_main_process:
         print(f'Example from [TRAIN]: {train_dataset[0]}')
         print(f'Example from [TEST]: {eval_dataset[0]}')
-        print(f'Example from [TRAIN]: {generate_dataset[0]}')
+        print(f'Example from [GEN]: {generate_dataset[0]}')
         sleep(5)
 
     collator = DataCollatorForCompletionOnlyLM(

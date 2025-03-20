@@ -1,36 +1,25 @@
 [model]
-model_name_or_path = '/mnt/data/models/attn-signs-watari-32/watari-32-merged'
+model_name_or_path = "attn-signs/Watari-7b-v0"
 
 [datasets]
-dataset = [
-    'attn-signs/kolmogorov-3',
-    'attn-signs/russian-code'
-]
-dataset_ratio = [
-    1,
-    1
-]
-test_size = 0.02
+dataset = "Vikhrmodels/GrandMaster-PRO-MAX"
 conversation_field = "conversation"
 generate_eval_examples = false
-eval_strategy = "steps"
-eval_steps = 500
+evaluation_strategy = "steps"
+eval_steps = 300
 dataloader_num_workers = 2
 remove_unused_columns = true
-construct_history = false
 
 [run]
 save_strategy = "steps"
-save_steps = 250
-# eval_on_start=true
+save_steps = 300
 save_total_limit = 3
-run_name = "sft-watari-32"
+run_name = "sft-watari-7"
 report_to = "wandb"
 logging_first_step = true
 logging_steps = 1
-output_dir = "models/attn-signs-watari-32"
-project_name = "sft-lora-watari"
-resume_from = false
+output_dir = "models/attn-signs-watari-7"
+project_name = "sft-watari"
 
 [training]
 train_only_on_completions = true
@@ -40,27 +29,16 @@ num_train_epochs = 1
 learning_rate = 0.00004
 gradient_accumulation_steps = 8
 gradient_checkpointing = true
-max_seq_length = 32768
 warmup_steps = 10
 bf16 = true
 seed = 42
-use_peft = true
+use_peft = false
 attn_implementation = "flash_attention_2"
-use_liger = true
 
-[lora]
-lora_target_modules = [
-    "k_proj",
-    "v_proj",
-    "q_proj",
-    "o_proj",
-    "gate_proj",
-    "up_proj",
-    "down_proj",
-    "lm_head"
-]
-lora_r = 256
-lora_alpha = 256
+[fusion]
+use_liger = true
+patch_dyntanh = true
+# use_dyntanh = true
 
 [tokenizer]
 assistant_message_template =  "<|im_start|>assistant"

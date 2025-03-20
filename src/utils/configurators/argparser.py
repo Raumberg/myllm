@@ -73,7 +73,8 @@ class ArgParser(HfArgumentParser):
             'tokenizer',
             'lora',
 
-            'grpo'
+            'grpo',
+            'fusion'
         ]
 
         instances = []

@@ -38,7 +38,11 @@ class SFTScriptArguments(MetaArguments):
     )
     resume_from: str | None = field(
         default=None,
-       metadata={"help": "Whether to resume from checkpoint. Path is expected"}
+        metadata={"help": "Whether to resume from checkpoint. Path is expected"}
+    )
+    use_dyntanh: bool | None = field(
+        default=False,
+        metadata={"help": "Whether to use Fused Dynamic Tanh instead of LayerNorm"}
     )
 
     def __post_init__(self):

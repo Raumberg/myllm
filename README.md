@@ -60,7 +60,12 @@ python adapters.py merge --source ../../models/attn-signs-watari-32/checkpoint-5
 
 # Latest changes:
 - Added lora-sft-watari-32-stage-n.toml training configs from [Attention Signs HuggingFace Page](https://huggingface.co/attn-signs/Watari-32b-v0)
-- Added new [fusion] toml group for fused kernels
+- Added new [fusion] toml group for fused kernels. Example:  
+```toml
+[fusion]
+use_liger = true
+patch_dyntanh = true # Nightly function, may be unstable
+```
 - Added new modules: `stdout` and `data_processors` and `liger`.
     - **stdout:** print your model config, script arguments and training config in table. Example:
     ```

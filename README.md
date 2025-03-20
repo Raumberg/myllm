@@ -59,7 +59,8 @@ python adapters.py merge --source ../../models/attn-signs-watari-32/checkpoint-5
 - Extend model tokenizer by using `tokenizer.py`
 
 # Latest changes:
-- Added lora-sft-watariv2.toml training config from [Attention Signs HuggingFace Page](https://huggingface.co/attn-signs/Watari-32b-v0)
+- Added lora-sft-watari-32-stage-n.toml training configs from [Attention Signs HuggingFace Page](https://huggingface.co/attn-signs/Watari-32b-v0)
+- Added new [fusion] toml group for fused kernels
 - Added new modules: `stdout` and `data_processors` and `liger`.
     - **stdout:** print your model config, script arguments and training config in table. Example:
     ```

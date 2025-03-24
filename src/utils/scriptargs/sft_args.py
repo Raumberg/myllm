@@ -44,6 +44,10 @@ class SFTScriptArguments(MetaArguments):
         default=False,
         metadata={"help": "Whether to use Fused Dynamic Tanh instead of LayerNorm"}
     )
+    patch_dyntanh: bool | None = field(
+        default=False,
+        metadata={"help": "Whether to use Fused Dynamic Tanh instead of LayerNorm"}
+    )
 
     def __post_init__(self):
         self.project_name = "sft-tuning" if self.project_name == "default-project" else self.project_name

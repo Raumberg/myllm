@@ -1,14 +1,19 @@
 import triton
 import triton.language as tl
 
-@triton.autotune(
-    configs=[
-        triton.Config({'BLOCK_SIZE': 256}, num_warps=4),
-        triton.Config({'BLOCK_SIZE': 512}, num_warps=4),
-        triton.Config({'BLOCK_SIZE': 1024}, num_warps=8),
-    ],
-    key=['HIDDEN_SIZE']
-)
+# @triton.autotune(
+#     configs=[
+#         triton.Config({'BLOCK_SIZE': 256}, num_warps=4),
+#         triton.Config({'BLOCK_SIZE': 512}, num_warps=4),
+#         triton.Config({'BLOCK_SIZE': 1024}, num_warps=8),
+#     ],
+#     key=['HIDDEN_SIZE']
+# )
+
+@triton.jit
+def tanh(x):
+    return 2 * tl.sigmoid(2 * x) - 1
+
 @triton.jit
 def DynTanhKerr(
     x_ptr, alpha_ptr, weight_ptr, bias_ptr,
@@ -21,9 +26,6 @@ def DynTanhKerr(
     row_idx = tl.program_id(0)
     col_offsets = tl.arange(0, BLOCK_SIZE)
     mask = col_offsets < HIDDEN_SIZE
-
-    # mem alloc optim
-    tl.advice(x_ptr, tl.constexpr.ALLOCATION_POLICY.STATIC)
     
     # load params for the whole layer
     alpha = tl.load(alpha_ptr)
@@ -36,9 +38,8 @@ def DynTanhKerr(
     
     # compute, compute and compute once again
     scaled = alpha * tl.minimum(tl.maximum(x, -10.0), 10.0) # mem buffer overflow sheild
-    activated = tl.tanh(scaled)
+    activated = tanh(scaled)
     weighted = activated * weight + bias
     
     # store
-    tl.store(output_ptr + row_idx * HIDDEN_SIZE + col_offsets, 
-            weighted.to(tl.__getattribute__(DTYPE)), mask=mask)
+    tl.store(output_ptr + row_idx * HIDDEN_SIZE + col_offsets, weighted.to(tl.bfloat16), mask=mask)

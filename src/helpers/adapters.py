@@ -10,7 +10,8 @@ def cli():
     pass
 
 @cli.command('merge')
-@click.option('--source', '-s', required=True, help='Adapter and model configuration path')
+@click.option('--source', '-s', required=True, help='Source model path')
+# @click.option('--adapters', '-a', required=True, help='Adapters configuration path')
 @click.option('--output', '-o', required=True, help='Output path')
 @click.option('--is-clf', '-c', is_flag=True, help='Is model type AutoPeftModelForSequenceClassification or AutoPeftModelForCausalLM')
 @click.option('--dtype', '-t', type=click.Choice(['f32', 'f16', 'bf16'], case_sensitive=False), default='bf16', help='Torch data type to use for model loading')

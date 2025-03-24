@@ -78,6 +78,7 @@ def main():
     if PartialState().is_main_process:
         k, v = ["Total Grad. params:"], [total_grad_params]
         print_table(k, v)
+        sleep(10)
 
     # ================== #
     # PEFT config

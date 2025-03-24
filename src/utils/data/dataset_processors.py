@@ -79,5 +79,5 @@ def grpo_row_processor(row, args):
                 {'role': 'system', 'content': args.system_prompt},
                 {'role': 'user', 'content': row[args.problem_field]} 
                 ],
-            "answer": row[args.problem_field]
+            "answer": row[args.solution_field]
         }

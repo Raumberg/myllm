@@ -23,16 +23,16 @@ class FusedDynamicTanh(nn.Module):
         self.bias = nn.Parameter(torch.zeros(normalized_shape, dtype=dtype))
         
         # param init
-        self._init_parameters()
+    #     self._init_parameters()
 
-    def _init_parameters(self):
-        nn.init.ones_(self.weight)
-        nn.init.zeros_(self.bias)
-        nn.init.constant_(self.alpha, 0.5)
+    # def _init_parameters(self):
+    #     nn.init.ones_(self.weight)
+    #     nn.init.zeros_(self.bias)
+    #     nn.init.constant_(self.alpha, 0.5)
         
-        # alpha limit
-        with torch.no_grad():
-            self.alpha.clamp_(min=0.1, max=2.0)
+    #     # alpha limit
+    #     with torch.no_grad():
+    #         self.alpha.clamp_(min=0.1, max=2.0)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         assert x.dtype in [torch.float16, torch.bfloat16, torch.float32], \

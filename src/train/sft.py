@@ -1,5 +1,6 @@
 # | STD | 
 import os
+import sys
 import random
 import uuid
 import warnings
@@ -99,10 +100,14 @@ def main():
     if args.patch_dyntanh:
         model = FusedDynTanhPatch(
             model=model,
-            copy_params=True,
+            copy_params=False,
             verbose=True,
             dtype=torch.bfloat16 if sft_config.bf16 else torch.float16
         )
+
+    if PartialState().is_main_process:  
+        print(model)
+        # sys.exit(1)
 
     if PartialState().is_main_process and args.use_dyntanh:
         for name, param in model.named_parameters():

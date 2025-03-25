@@ -3,6 +3,9 @@ import os
 import random
 import uuid
 import warnings
+import sys
+
+sys.path.append('/home/nshestopalov/projects/myllm')
 
 import torch
 from accelerate import PartialState
@@ -18,14 +21,23 @@ from src.utils.data import load_datasets, grpo_row_processor
 from src.utils.logs import setup_logging
 from src.utils.model import setup_model_and_tokenizer
 from src.utils.stdout import print_configs, print_table
+from src.utils.kernels import get_liger_kernel
 
 from functools import partial
 from time import sleep
+from datasets import load_dataset
 
-from src.rewards import *
+from src.rewards import (
+    correctness_reward_func,
+    count_xml,
+    int_reward_func,
+    strict_format_reward_func,
+    soft_format_reward_func,
+    xmlcount_reward_func,
+    accuracy_reward
+)
 
 logger = get_logger(__name__)
-
 LOGGING_TASK_NAME = str(uuid.uuid4())
 
 os.environ['WANDB_RUN_ID'] = str(random.randint(100000, 999999))
@@ -66,6 +78,12 @@ def main():
         torch_dtype=torch.bfloat16 if grpo_config.bf16 else torch.float16,
         attn_implementation=model_config.attn_implementation
     )
+
+    # ================== #
+    # Fusion / Kernels
+    # ================== #
+    if args.use_liger:
+        get_liger_kernel()
 
     # ================== #
     # Grad params
@@ -111,26 +129,41 @@ def main():
     # ================== #
     if not args.system_prompt: warnings.warn("System Prompt is not set in your configuration file, this can cause reasoning biases.")
 
-    ds = load_datasets(args.dataset, args.test_size, args.dataset_ratio)
-
-    signature_columns = ["input_ids", "labels", "attention_mask"]
-    extra_columns = list(set(ds['train'].column_names) - set(signature_columns))
+    # ds = load_datasets(args.dataset, args.test_size, args.dataset_ratio)
     
-    row_processor = partial(
-        grpo_row_processor,
-        args=args
-    )
+    # row_processor = partial(
+    #     grpo_row_processor,
+    #     args=args
+    # )
 
-    with PartialState().local_main_process_first():
-        ds = ds.map(
-            row_processor,
-            num_proc=multiprocessing.cpu_count(),
-            load_from_cache_file=True,
-            remove_columns=extra_columns
-        )
+    # with PartialState().local_main_process_first():
+    #     ds = ds.map(
+    #         row_processor,
+    #         num_proc=multiprocessing.cpu_count(),
+    #         load_from_cache_file=True,
+    #     )
 
-    train_dataset = ds["train"]
-    eval_dataset = ds["test"]
+    # train_dataset = ds["train"]
+    # eval_dataset = ds["test"]
+
+    def extract_hash_answer(text: str) -> str | None:
+        if "####" not in text:
+            return None
+        return text.split("####")[1].strip()
+
+    def get_gsm8k_questions(split = "train"):
+        data = load_dataset('d0rj/gsm8k-ru')[split]
+        data = data.map(lambda x: {
+            'prompt': [
+                {'role': 'system', 'content': args.system_prompt},
+                {'role': 'user', 'content': x['question']}
+            ],
+            'answer': extract_hash_answer(x['answer'])
+        })
+        return data
+
+    train_dataset = get_gsm8k_questions(split="train")
+    eval_dataset = get_gsm8k_questions(split="test")
 
     if PartialState().is_main_process:
         print(f'Example from [TRAIN]: {train_dataset[0]}')

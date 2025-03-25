@@ -1,7 +1,6 @@
 def extract_xml_answer(text: str) -> str:
-    """Вытаскивает ответ из тегов <output>ответ</output>"""
-    answer = text.split("<output>")[-1]
-    answer = answer.split("</output>")[0]
+    answer = text.split("<answer>")[-1]
+    answer = answer.split("</answer>")[0]
     return answer.strip()
 
 def extract_hash_answer(text: str) -> str | None:

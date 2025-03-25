@@ -43,6 +43,10 @@ class GRPOScriptArguments(MetaArguments):
         default=8192,
         metadata={"help": "Max sequence length property."}
     )
+    use_liger: bool | None = field(
+        default=False,
+        metadata={"help": "Whether to use Liger Kernel for the model"}
+    )
 
     def __post_init__(self):
         self.project_name = "grpo-rl" if self.project_name == "default-project" else self.project_name

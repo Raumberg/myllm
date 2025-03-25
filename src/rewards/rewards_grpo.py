@@ -11,10 +11,10 @@ def count_xml(text: str) -> float:
     Count specific XML tags in the given text and return a score based on their presence.
 
     The function checks for the presence of specific XML tags and assigns a score based on the following criteria:
-    - Presence of a single <Thought> tag increases the score by 0.125.
-    - Presence of a single </Thought> tag increases the score by 0.125.
-    - Presence of a single <output> tag increases the score by 0.125, but decreases the score based on the length of the text after the last </output> tag.
-    - Presence of a single </output> tag increases the score by 0.125, but decreases the score based on the length of the text after the last </output> tag.
+    - Presence of a single <thought> tag increases the score by 0.125.
+    - Presence of a single </thought> tag increases the score by 0.125.
+    - Presence of a single <answer> tag increases the score by 0.125, but decreases the score based on the length of the text after the last </answer> tag.
+    - Presence of a single </answer> tag increases the score by 0.125, but decreases the score based on the length of the text after the last </answer> tag.
 
     Args:
         text (str): The input text containing XML content.
@@ -23,16 +23,20 @@ def count_xml(text: str) -> float:
         float: The calculated score based on the presence of XML tags.
     """
     count = 0.0
-    if text.count("<Thought>\n") == 1:
+    if text.count("<thought>\n") == 1:
         count += 0.125
-    if text.count("\n</Thought>\n") == 1:
+    if text.count("\n</thought>\n") == 1:
         count += 0.125
-    if text.count("\n<output>\n") == 1:
+    if text.count("\n<diagram>\n") == 1:
         count += 0.125
-        count -= len(text.split("\n</output>\n")[-1]) * 0.001
-    if text.count("\n</output>") == 1:
+    if text.count("\n</diagram>\n") == 1:
         count += 0.125
-        count -= (len(text.split("\n</output>")[-1]) - 1) * 0.001
+    if text.count("\n<answer>\n") == 1:
+        count += 0.125
+        count -= len(text.split("\n</answer>\n")[-1]) * 0.001
+    if text.count("\n</answer>") == 1:
+        count += 0.125
+        count -= (len(text.split("\n</answer>")[-1]) - 1) * 0.001
     return count
 
 # /<UTILITIES>
@@ -55,9 +59,15 @@ def correctness_reward_func(prompts: list, completions: list, answer: list, **kw
         list[float]: A list of rewards for each completion based on correctness.
     """
     responses = [completion[0]['content'] for completion in completions]
-    q = prompts[0][-1]['content']
+    question = prompts[0][-1]['content']
     extracted_responses = [extract_xml_answer(r) for r in responses]
-    print('-' * 20, f"Question:\n{q}", f"\nAnswer:\n{answer[0]}", f"\nResponse:\n{responses[0]}", f"\nExtracted:\n{extracted_responses[0]}")
+    print('=' * 40, '\n')
+    print(f'TASK / QUESTION:\n{question}')
+    print('-' * 40, '\n')
+    print(f'SOLUTION / ANSWER: \n{answer[0]}')
+    print('-' * 40, '\n')
+    print(f'RESPONSE:\n{responses[0]}')
+    print('=' * 40, '\n')
     return [2.0 if r == a else 0.0 for r, a in zip(extracted_responses, answer)]
 
 def int_reward_func(completions: list, **kwargs) -> list[float]:
@@ -90,7 +100,7 @@ def strict_format_reward_func(completions: list, **kwargs) -> list[float]:
     Returns:
         list[float]: A list of rewards for each completion based on strict format adherence.
     """
-    pattern = r"^<Thought>\n.*?\n</Thought>\n<output>\n.*?\n</output>\n$"
+    pattern = r"^<thought>\n.*?\n<diagram>\n.*?\n</diagram>\n*?</thought>\n<answer>\n.*?\n</answer>\n$"
     responses = [completion[0]["content"] for completion in completions]
     matches = [re.match(pattern, r) for r in responses]
     return [0.5 if match else 0.0 for match in matches]
@@ -109,7 +119,7 @@ def soft_format_reward_func(completions: list, **kwargs) -> list[float]:
     Returns:
         list[float]: A list of rewards for each completion based on loose format adherence.
     """
-    pattern = r"<Thought>.*?</Thought>\s*<output>.*?</output>"
+    pattern = r"<thought>.*?</thought>\s*<answer>.*?</answer>"
     responses = [completion[0]["content"] for completion in completions]
     matches = [re.match(pattern, r) for r in responses]
     return [0.5 if match else 0.0 for match in matches]

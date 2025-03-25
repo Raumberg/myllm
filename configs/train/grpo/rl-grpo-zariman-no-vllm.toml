@@ -13,17 +13,25 @@ run_name = "rl-zariman-7"
 report_to = "wandb"
 logging_first_step = true
 logging_steps = 1
+save_strategy = "steps"
+save_steps = 100
+save_total_limit = 5
 output_dir = "models/attn-signs-zariman-7"
 project_name = "rl-zariman"
 
 [training]
 num_train_epochs = 1
+per_device_train_batch_size = 4
 learning_rate = 0.00005
 bf16 = true
 seed = 42
 use_peft = true
 
 [grpo]
+# use_vllm = true
+# vllm_gpu_memory_utilization = 0.25
+num_generations = 4
+max_completion_length = 4096
 
 [lora]
 lora_target_modules = [
@@ -42,7 +50,7 @@ lora_alpha = 64
 use_liger = true
 
 [tokenizer]
-system_prompt = "Ты полезный ассистент. Отвечай на вопросы, сохраняя следующую структуру: <Thought> Твои мысли и рассуждения </Thought> <output> Твой конечный ответ </output>"
+system_prompt = "Ты Зариман, полезный ИИ-ассистент. Ты ведёшь диалог с пользователем и стараешься решить его задачу, рассуждая о каждом шаге. Чтобы помочь себе, ты можешь писать диаграммы. Диаграммы могут выглядеть произвольным образом, например: <diagram> Постановка задачи в LaTeX -> Решение -> Проверка -> Окончательный ответ </diagram>. Отвечай, сохраняя следующую структуру: <thought> твои мысли и рассуждения <diagram> твои диаграммы или то, что может помочь решить задачу </diagram> </thought> <answer> твой конечный ответ </answer>"
 assistant_message_template =  "<|im_start|>assistant<|im_sep|>"
 pad_token =  "<|endoftext|>"
 eos_token =  "<|im_end|>"

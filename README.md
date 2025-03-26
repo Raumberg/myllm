@@ -43,7 +43,7 @@ accelerate launch --config_file <path-to-cfg.yaml> <path-to-script.py> <path-to-
 # example SFT:
 accelerate launch --config_file configs/accelerate/stage3_config.yaml src/train/sft.py configs/train/sft/full-sft-watari.toml
 # example GRPO:
-accelerate launch --config_file configs/accelerate/grpo_deepspeed.yaml src/train/grpo.py configs/train/grpo/rl-grpo-zariman-no-vllm.toml
+accelerate launch src/train/grpo.py configs/train/grpo/rl-grpo-zariman-no-vllm.toml
 ```  
    
 > **⚠️ Disclaimer:**  

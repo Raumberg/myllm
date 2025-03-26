@@ -1,4 +1,4 @@
-from src.utils.data import extract_xml_answer
+from src.utils.data.extraction import extract_xml_answer
 
 import re
 from math_verify import LatexExtractionConfig, parse, verify

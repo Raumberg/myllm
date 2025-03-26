@@ -1,4 +1,5 @@
 from transformers import AutoTokenizer
+from .extraction import extract_hash_answer
 
 def history_row_processor(
         row: str, 
@@ -74,10 +75,16 @@ def default_row_processor(
     )
 
 def grpo_row_processor(row, args):
-        return {
-            "prompt": [
-                {'role': 'system', 'content': args.system_prompt},
-                {'role': 'user', 'content': row[args.problem_field]} 
-                ],
-            "answer": row[args.solution_field]
-        }
+    result = {
+        "prompt": [
+            {'role': 'system', 'content': args.system_prompt},
+            {'role': 'user', 'content': row[args.problem_field]} 
+        ]
+    }
+    
+    if args.extract_hash: 
+        result["answer"] = extract_hash_answer(row[args.solution_field])
+    else: 
+        result["answer"] = row[args.solution_field]
+    
+    return result

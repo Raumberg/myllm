@@ -15,6 +15,10 @@ class GRPOScriptArguments(MetaArguments):
         default="solution",
         metadata={"help": "Solution field in the dataset"}
     )
+    extract_hash: bool | None = field(
+        default=False,
+        metadata={"help": "Whether to extract answer after ### tags in solution_field"}
+    )
     system_prompt: str | None = field(
         default=None,
         metadata={"help": "Will use system prompt if there is no one in dialogue, set to None to disable"}

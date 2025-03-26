@@ -1,3 +1,4 @@
+# | CORE |
 import multiprocessing
 import os
 import random
@@ -5,28 +6,40 @@ import uuid
 import warnings
 import sys
 
-sys.path.append('/home/nshestopalov/projects/myllm')
+sys.path.append('/home/nshestopalov/projects/myllm') # insert your myllm path here
 
+# | TORCH | 
 import torch
+
+# | TRANSFORMERS / DATAPARALLEL | 
 from accelerate import PartialState
 from accelerate.logging import get_logger
 from transformers import AutoModelForCausalLM, AutoTokenizer, set_seed
-from transformers.integrations import is_deepspeed_zero3_enabled
 from trl import GRPOTrainer, GRPOConfig, ModelConfig, get_peft_config
 
+# | PARSERS |
 from src.utils.configurators import ArgParser
 from src.utils.scriptargs import GRPOScriptArguments
 
-from src.utils.data import load_datasets, grpo_row_processor
+# | DATA |
+from src.utils.data.utils import load_datasets
+from src.utils.data.processors import grpo_row_processor
+
+# | MODEL |
 from src.utils.logs import setup_logging
 from src.utils.model import setup_model_and_tokenizer
+
+# | STDOUT | 
 from src.utils.stdout import print_configs, print_table
+
+# | FUSION |
 from src.utils.kernels import get_liger_kernel
 
+# | MISC |
 from functools import partial
 from time import sleep
-from datasets import load_dataset
 
+# | GRPO REWARDS | 
 from src.rewards import (
     correctness_reward_func,
     count_xml,
@@ -129,41 +142,22 @@ def main():
     # ================== #
     if not args.system_prompt: warnings.warn("System Prompt is not set in your configuration file, this can cause reasoning biases.")
 
-    # ds = load_datasets(args.dataset, args.test_size, args.dataset_ratio)
+    ds = load_datasets(args.dataset, args.test_size, args.dataset_ratio)
     
-    # row_processor = partial(
-    #     grpo_row_processor,
-    #     args=args
-    # )
+    row_processor = partial(
+        grpo_row_processor,
+        args=args
+    )
 
-    # with PartialState().local_main_process_first():
-    #     ds = ds.map(
-    #         row_processor,
-    #         num_proc=multiprocessing.cpu_count(),
-    #         load_from_cache_file=True,
-    #     )
+    with PartialState().local_main_process_first():
+        ds = ds.map(
+            row_processor,
+            num_proc=multiprocessing.cpu_count(),
+            load_from_cache_file=True,
+        )
 
-    # train_dataset = ds["train"]
-    # eval_dataset = ds["test"]
-
-    def extract_hash_answer(text: str) -> str | None:
-        if "####" not in text:
-            return None
-        return text.split("####")[1].strip()
-
-    def get_gsm8k_questions(split = "train"):
-        data = load_dataset('d0rj/gsm8k-ru')[split]
-        data = data.map(lambda x: {
-            'prompt': [
-                {'role': 'system', 'content': args.system_prompt},
-                {'role': 'user', 'content': x['question']}
-            ],
-            'answer': extract_hash_answer(x['answer'])
-        })
-        return data
-
-    train_dataset = get_gsm8k_questions(split="train")
-    eval_dataset = get_gsm8k_questions(split="test")
+    train_dataset = ds["train"]
+    eval_dataset = ds["test"]
 
     if PartialState().is_main_process:
         print(f'Example from [TRAIN]: {train_dataset[0]}')

@@ -45,7 +45,7 @@ warmup_steps = 10
 bf16 = true
 seed = 42
 use_peft = true
-attn_implementation = "flash_attention_2"
+attn_implementation = "flash_attention2"
 use_liger = true
 
 [lora]

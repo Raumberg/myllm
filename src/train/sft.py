@@ -27,14 +27,15 @@ from src.utils.scriptargs import SFTScriptArguments
 from src.utils.callbacks import GenerateExamplesCallback
 
 # | DATA |
-from src.utils.data import load_datasets, default_row_processor, history_row_processor
+from src.utils.data.utils import load_datasets
+from src.utils.data.processors import default_row_processor, history_row_processor
 from src.utils.logs import setup_logging
 from src.utils.model import setup_model_and_tokenizer
 from src.utils.collators import DataCollatorForCompletionOnlyLM
 
 # | FUSION |
 from src.utils.kernels import get_liger_kernel
-from src.fusion.dyntanh import getFusedDynTanh, FusedDynTanhPatch
+from src.fusion.dyntanh import FusedDynTanhPatch
 
 # | STDOUT | 
 from src.utils.stdout import print_configs, inspect_model, print_table
@@ -95,8 +96,6 @@ def main():
     # ================== #
     if sft_config.use_liger:
         get_liger_kernel()
-    if args.use_dyntanh:
-        model = getFusedDynTanh()
     if args.patch_dyntanh:
         model = FusedDynTanhPatch(
             model=model,
@@ -107,7 +106,6 @@ def main():
 
     if PartialState().is_main_process:  
         print(model)
-        # sys.exit(1)
 
     if PartialState().is_main_process and args.use_dyntanh:
         for name, param in model.named_parameters():

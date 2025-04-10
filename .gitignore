@@ -11,4 +11,5 @@ wheels/
 
 wandb/
 models/
-unsloth_compiled_cache/
+unsloth_compiled_cache
+grpo_trainer_lora_model

@@ -11,3 +11,4 @@ wheels/
 
 wandb/
 models/
+unsloth_compiled_cache/

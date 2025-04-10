@@ -23,6 +23,14 @@ class GRPOScriptArguments(MetaArguments):
         default=None,
         metadata={"help": "Will use system prompt if there is no one in dialogue, set to None to disable"}
     )
+    preload_rm: bool | None = field(
+        default=False,
+        metadata={"help": "Whether to preload reward models"}
+    )
+    rm: str | None = field(
+        default=None,
+        metadata={"help": "List of reward models to use"}
+    )
     generate_eval_examples: bool | None = field(
         default=True,
         metadata={"help": "Do generate examples on eval"}

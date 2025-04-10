@@ -40,15 +40,10 @@ from functools import partial
 from time import sleep
 
 # | GRPO REWARDS | 
-from src.rewards import (
-    correctness_reward_func,
-    count_xml,
-    int_reward_func,
-    strict_format_reward_func,
-    soft_format_reward_func,
-    xmlcount_reward_func,
-    accuracy_reward
-)
+import src.rewards as rwd
+
+# | REWARD MODELS | 
+from src.reward_models.drama import DRAMAModel
 
 logger = get_logger(__name__)
 LOGGING_TASK_NAME = str(uuid.uuid4())
@@ -138,6 +133,14 @@ def main():
         sleep(5)
 
     # ================== #
+    # Reward Models
+    # ================== #
+    if PartialState().is_main_process and args.preload_rm:
+        print('Initializing reward models..')
+        # DRAMAModel.get_instance('cuda')
+        # sleep(5)
+
+    # ================== #
     # Dataset
     # ================== #
     if not args.system_prompt: warnings.warn("System Prompt is not set in your configuration file, this can cause reasoning biases.")
@@ -173,10 +176,13 @@ def main():
         model=model,
         processing_class=tokenizer,
         reward_funcs=[
-            xmlcount_reward_func,
-            soft_format_reward_func,
-            int_reward_func,
-            correctness_reward_func
+            rwd.equation_structure_reward,
+            # rwd.redundancy_penalty,
+            rwd.correctness_reward,
+            rwd.multilingual_coherence_reward,
+            rwd.strict_chinese_penalty,
+            rwd.bormann_format_reward,
+            rwd.russian_purity_reward
         ],
         args=grpo_config,
         train_dataset=train_dataset,

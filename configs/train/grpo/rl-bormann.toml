@@ -1,0 +1,75 @@
+[model]
+model_name_or_path = "nvidia/Llama-3.1-Nemotron-Nano-8B-v1"
+
+[datasets]
+dataset = "d0rj/gsm8k-ru"
+problem_field = "question"
+solution_field = "answer"
+dataloader_num_workers = 2
+test_size = 0.1
+extract_hash = true
+
+[run]
+run_name = "rl-bormann-8"
+report_to = "wandb"
+logging_first_step = true
+logging_steps = 1
+save_strategy = "steps"
+save_steps = 500
+save_total_limit = 5
+output_dir = "models/attn-signs-bormann-8"
+project_name = "rl-bormann"
+
+[training]
+num_train_epochs = 1
+per_device_train_batch_size = 2
+learning_rate = 0.00005
+bf16 = true
+seed = 42
+use_peft = true
+
+[grpo]
+# use_vllm = true
+num_generations = 4
+max_completion_length = 4096
+num_iterations = 4          # https://github.com/huggingface/trl/releases/tag/v0.16.0
+scale_rewards = false       # should be default var
+beta = 0.0                  # do not load reference model, do not minimize KL-div. Great memory saving opportunity.
+epsilon_high = 0.28         # Increasing upper bound epsilon leads to higher entropy during generation, promoting better exploration
+preload_rm = true
+
+[lora]
+lora_target_modules = [
+    "k_proj",
+    "v_proj",
+    "q_proj",
+    "o_proj",
+    "gate_proj",
+    "up_proj",
+    "down_proj",
+]
+lora_r = 32
+lora_alpha = 64
+
+[fusion]
+use_liger = true
+attn_implementation = "flash_attention_2"
+
+[tokenizer]
+eos_token =  "<|eot_id|>"
+pad_token = "<|end_of_text|>"
+chat_template = "{%- if messages[0]['role'] == 'system' -%}{%- set system_message = messages[0]['content'] | trim -%}{%- set messages = messages[1:] -%}{%- else -%}{%- set system_message = '' -%}{%- endif -%}{%- if tools is not none -%}{{- '<|begin_of_text|><|start_header_id|>system<|end_header_id|>' + '\n\n' + system_message -}} {{- '\n\n' if system_message else '' -}} {{- '<AVAILABLE_TOOLS>[' -}} {% for t in tools %}{{- (t.function if t.function is defined else t) | tojson() -}}{{- ', ' if not loop.last else '' -}}{%- endfor -%} {{- ']</AVAILABLE_TOOLS>' -}} {{- '<|eot_id|>' -}}{%- else -%}{{- '<|begin_of_text|><|start_header_id|>system<|end_header_id|>' + '\n\n' + system_message + '<|eot_id|>' -}}{%- endif -%}{%- for message in messages -%}{%- if (message['role'] in ['user', 'tool']) != (loop.index0 % 2 == 0) -%}{{- raise_exception('Conversation roles must alternate between user/tool and assistant') -}}{%- elif message['role'] == 'user' -%}{{- '<|start_header_id|>user<|end_header_id|>' + '\n\n' + message['content'] | trim + '<|eot_id|>' -}}{%- elif message['role'] == 'tool' -%}{%- set tool_response = '<TOOL_RESPONSE>[' + message['content'] | trim + ']</TOOL_RESPONSE>' -%}{{- '<|start_header_id|>user<|end_header_id|>' + '\n\n' + tool_response + '<|eot_id|>' -}}{%- elif message['role'] == 'assistant' and message.get('tool_calls') is not none -%}{%- set tool_calls = message['tool_calls'] -%}{{- '<|start_header_id|>assistant<|end_header_id|>' + '\n\n' + '<TOOLCALL>[' -}}{%- for tool_call in tool_calls -%}{{ '{' + '\"name\": \"' + tool_call.function.name + '\", \"arguments\": ' + tool_call.function.arguments | tojson + '}' }}{%- if not loop.last -%}{{ ', ' }}{%- else -%}{{ ']</TOOLCALL>' + '<|eot_id|>' }}{%- endif -%}{%- endfor -%}{%- elif message['role'] == 'assistant' -%}{{- '<|start_header_id|>assistant<|end_header_id|>' + '\n\n' + message['content'] | trim + '<|eot_id|>' -}}{%- endif -%}{%- endfor -%}{%- if add_generation_prompt -%}{{ '<|start_header_id|>assistant<|end_header_id|>' + '\n\n' }}{%- endif -%}"
+force_chat_template =  true
+system_prompt = """
+[MODE: Deep Thinking]
+Ты полезный ассистент, который стремится помочь пользователю в любой его проблеме или вопросе. 
+Ты ведёшь диалог с пользователем и стараешься решить его задачу, рассуждая о каждом своём шаге. 
+Все ответы должны быть на русском языке и соответствовать формату:
+<think> 
+твои мысли, рассуждения, анализ задачи 
+<diagram> 
+твои диаграммы для визуализации сложных задач 
+</diagram> 
+</think> 
+твой конечный ответ пользователю.
+"""

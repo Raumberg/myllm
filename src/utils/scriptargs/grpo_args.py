@@ -59,6 +59,22 @@ class GRPOScriptArguments(MetaArguments):
         default=False,
         metadata={"help": "Whether to use Liger Kernel for the model"}
     )
+    fast_inference: bool | None = field(
+        default=True,
+        metadata={"help": "Enable vLLM for fast inference (Unsloth)"}
+    )
+    fast_kv_cache: bool | None = field(
+        default=True,
+        metadata={"help": "Whether to enable FP8 KV Cache (Unsloth)"}
+    )
+    grad_checkpointing: bool | None = field(
+        default=True,
+        metadata={"help": "Whether to use grads checkpoint (Unsloth)"}
+    )
+    model_name: str | None = field(
+        default='',
+        metadata={"help": "Model Repository (Unsloth)"}
+    )
 
     def __post_init__(self):
         self.project_name = "grpo-rl" if self.project_name == "default-project" else self.project_name

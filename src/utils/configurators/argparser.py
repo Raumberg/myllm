@@ -74,7 +74,8 @@ class ArgParser(HfArgumentParser):
             'lora',
 
             'grpo',
-            'fusion'
+            'fusion',
+            'unsloth'
         ]
 
         instances = []

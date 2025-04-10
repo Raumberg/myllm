@@ -29,14 +29,14 @@ seed = 42
 use_peft = true
 
 [grpo]
-# use_vllm = true
-num_generations = 4
+use_vllm = true
+num_generations = 2
 max_completion_length = 4096
-num_iterations = 4          # https://github.com/huggingface/trl/releases/tag/v0.16.0
+num_iterations = 1          # https://github.com/huggingface/trl/releases/tag/v0.16.0
 scale_rewards = false       # should be default var
-beta = 0.0                  # do not load reference model, do not minimize KL-div. Great memory saving opportunity.
+beta = 0.04                 # reference model beta in vllm
 epsilon_high = 0.28         # Increasing upper bound epsilon leads to higher entropy during generation, promoting better exploration
-preload_rm = true
+preload_rm = false
 
 [lora]
 lora_target_modules = [

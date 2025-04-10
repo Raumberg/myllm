@@ -45,6 +45,11 @@ accelerate launch --config_file configs/accelerate/stage3_config.yaml src/train/
 # example GRPO:
 accelerate launch src/train/grpo.py configs/train/grpo/rl-grpo-zariman-no-vllm.toml
 ```  
+- Example launching GRPO with VLLM support:
+```bash
+> CUDA_VISIBLE_DEVICES=1 trl vllm-serve --model <your-model> --tensor_parallel_size 1 --max_model_len 4096
+> CUDA_VISIBLE_DEVICES=0 accelerate launch src/train/grpo.py configs/train/grpo/<your-model-config>.toml 
+```
    
 > **⚠️ Disclaimer:**  
 > GRPO scripts can be unstable, the work is still going on. If you encounter any errors, please, open an Issue.  

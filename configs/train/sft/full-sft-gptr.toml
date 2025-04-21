@@ -1,0 +1,54 @@
+[model]
+model_name_or_path = "yandex/YandexGPT-5-Lite-8B-pretrain"
+
+[datasets]
+dataset = "attn-signs/gromov-0"
+conversation_field = "conversation"
+generate_eval_examples = false
+evaluation_strategy = "steps"
+eval_steps = 100
+dataloader_num_workers = 2
+remove_unused_columns = true
+test_size = 0.05
+
+[run]
+save_strategy = "steps"
+save_steps = 300
+save_total_limit = 3
+run_name = "sft-gptr-8-run2"
+report_to = "wandb"
+logging_first_step = true
+logging_steps = 1
+output_dir = "models/attn-signs-gptr-8-run2"
+project_name = "sft-gptr"
+
+[training]
+train_only_on_completions = true
+per_device_train_batch_size = 1
+per_device_eval_batch_size = 1
+num_train_epochs = 3
+learning_rate = 0.000009
+max_seq_length = 8192
+gradient_accumulation_steps = 8
+gradient_checkpointing = true
+warmup_steps = 10
+bf16 = true
+seed = 42
+use_peft = false
+
+[fusion]
+attn_implementation = "flash_attention_2"
+
+[tokenizer]
+assistant_message_template =  "<s>assistant\n"
+eos_token =  "</s>"
+pad_token = "<unk>"
+chat_template = "{% if not add_generation_prompt is defined %}{% set add_generation_prompt = false %}{% endif %}{% for message in messages %}{{'<s>' + message['role'] + '\n' + message['content'] + '</s>' + '\n'}}{% endfor %}{% if add_generation_prompt %}{{ '<s>assistant\n' }}{% endif %}"
+force_chat_template = true
+added_special_tokens = [
+    "<think>",
+    "</think>"
+]
+system_prompt = """
+[MODE: Reflection]
+"""

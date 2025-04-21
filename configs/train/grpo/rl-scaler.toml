@@ -1,0 +1,62 @@
+[model]
+model_name_or_path = "agentica-org/DeepScaleR-1.5B-Preview"
+
+[datasets]
+dataset = "d0rj/gsm8k-ru"
+problem_field = "question"
+solution_field = "answer"
+dataloader_num_workers = 2
+test_size = 0.1
+extract_hash = true
+
+[run]
+run_name = "rl-scaler-1.5"
+report_to = "wandb"
+logging_first_step = true
+logging_steps = 1
+save_strategy = "steps"
+save_steps = 500
+save_total_limit = 5
+output_dir = "models/attn-signs-scaler-1.5"
+project_name = "rl-scaler"
+
+[training]
+num_train_epochs = 1
+per_device_train_batch_size = 2
+learning_rate = 0.00001
+bf16 = true
+seed = 42
+
+[grpo]
+use_vllm = true
+num_generations = 2
+max_completion_length = 2048
+num_iterations = 1          # https://github.com/huggingface/trl/releases/tag/v0.16.0
+scale_rewards = false       # should be default var
+beta = 0.06                 # reference model beta in vllm
+epsilon_high = 0.28         # Increasing upper bound epsilon leads to higher entropy during generation, promoting better exploration
+preload_rm = false
+
+[lora]
+# load_in_4bit = true
+# bnb_4bit_quant_type = 'nf4'
+lora_target_modules = [
+    "k_proj",
+    "v_proj",
+    "q_proj",
+    "o_proj",
+    "gate_proj",
+    "up_proj",
+    "down_proj",
+]
+lora_r = 128
+lora_alpha = 256
+
+[tokenizer]
+eos_token =  "<｜end▁of▁sentence｜>"
+pad_token = "<｜end▁of▁sentence｜>"
+chat_template = "{% if not add_generation_prompt is defined %}{% set add_generation_prompt = false %}{% endif %}{% set ns = namespace(is_first=false, is_tool=false, is_output_first=true, system_prompt='') %}{%- for message in messages %}{%- if message['role'] == 'system' %}{% set ns.system_prompt = message['content'] %}{%- endif %}{%- endfor %}{{bos_token}}{{ns.system_prompt}}{%- for message in messages %}{%- if message['role'] == 'user' %}{%- set ns.is_tool = false -%}{{'<｜User｜>' + message['content']}}{%- endif %}{%- if message['role'] == 'assistant' and message['content'] is none %}{%- set ns.is_tool = false -%}{%- for tool in message['tool_calls']%}{%- if not ns.is_first %}{{'<｜Assistant｜><｜tool▁calls▁begin｜><｜tool▁call▁begin｜>' + tool['type'] + '<｜tool▁sep｜>' + tool['function']['name'] + '\\n' + '```json' + '\\n' + tool['function']['arguments'] + '\\n' + '```' + '<｜tool▁call▁end｜>'}}{%- set ns.is_first = true -%}{%- else %}{{'\\n' + '<｜tool▁call▁begin｜>' + tool['type'] + '<｜tool▁sep｜>' + tool['function']['name'] + '\\n' + '```json' + '\\n' + tool['function']['arguments'] + '\\n' + '```' + '<｜tool▁call▁end｜>'}}{{'<｜tool▁calls▁end｜><｜end▁of▁sentence｜>'}}{%- endif %}{%- endfor %}{%- endif %}{%- if message['role'] == 'assistant' and message['content'] is not none %}{%- if ns.is_tool %}{{'<｜tool▁outputs▁end｜>' + message['content'] + '<｜end▁of▁sentence｜>'}}{%- set ns.is_tool = false -%}{%- else %}{% set content = message['content'] %}{% if '</think>' in content %}{% set content = content.split('</think>')[-1] %}{% endif %}{{'<｜Assistant｜>' + content + '<｜end▁of▁sentence｜>'}}{%- endif %}{%- endif %}{%- if message['role'] == 'tool' %}{%- set ns.is_tool = true -%}{%- if ns.is_output_first %}{{'<｜tool▁outputs▁begin｜><｜tool▁output▁begin｜>' + message['content'] + '<｜tool▁output▁end｜>'}}{%- set ns.is_output_first = false %}{%- else %}{{'\\n<｜tool▁output▁begin｜>' + message['content'] + '<｜tool▁output▁end｜>'}}{%- endif %}{%- endif %}{%- endfor -%}{% if ns.is_tool %}{{'<｜tool▁outputs▁end｜>'}}{% endif %}{% if add_generation_prompt and not ns.is_tool %}{{'<｜Assistant｜><think>\\n'}}{% endif %}"
+force_chat_template =  true
+system_prompt = """
+[MODE: Deep Thinking]
+"""

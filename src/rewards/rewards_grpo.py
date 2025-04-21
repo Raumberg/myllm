@@ -2,12 +2,19 @@ from typing import List, Optional, Tuple
 import torch
 import logging
 
-from src.utils.data.extraction import extract_tagged_answer, extract_after_thinking, extract_boxed_answer
+from src.utils.data.extraction import (extract_tagged_answer, 
+                                    extract_after_thinking, 
+                                    extract_boxed_answer,
+                                    extract_thinking
+                                    )
 from src.reward_models.drama import DRAMAModel
 from src.utils.stdout.model_answer import print_section, format_box, format_reward_bar
 from src.validators.russian import RussianWordValidator
 
 import re
+import math
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 from math_verify import LatexExtractionConfig, parse, verify
 from latex2sympy2_extended import NormalizationConfig
 
@@ -45,45 +52,63 @@ def is_valid_xml_block(content: str, tag: str) -> bool:
             content.count(end_tag) == 1 and
             content.find(start_tag) < content.find(end_tag) and
             len(content.split(start_tag)[1].split(end_tag)[0].strip()) > 0)
+    
+def detect_reflection_marks(text: str) -> float:
+    reflection_indicators = {
+        'questioning': {
+            'patterns': ["?", "возможно", "может быть", "стоит ли", "верно ли"],
+            'weight': 0.4
+        },
+        'uncertainty': {
+            'patterns': ["сомневаюсь", "не уверен", "неоднозначно", "спорно", "однако"],
+            'weight': 0.3
+        },
+        'analysis': {
+            'patterns': ["с одной стороны", "с другой стороны", "альтернатива", "компромисс", "проверка"],
+            'weight': 0.2
+        },
+        'metacognition': {
+            'patterns': ["думаю", "думая", "рассуждая", "анализируя", "оценивая"],
+            'weight': 0.1
+        },
+        'cognitivity': {
+            'patterns': ["следовательно", "таким образом", "делать вывод", "утверждая"],
+            'weight': 0.2
+        }
+    }
+
+    # Предобработка текста
+    text_lower = text.lower()
+    # Удаляем пунктуацию, кроме специальных символов (например, "?")
+    text_clean = re.sub(r'[^\w\s?]', ' ', text_lower)
+    text_clean = re.sub(r'\s+', ' ', text_clean).strip()
+
+    score = 0.0
+    for category in reflection_indicators.values():
+        category_count = 0
+        for pattern in category['patterns']:
+            # Экранируем спецсимволы и учитываем границы слов
+            if pattern == "?":
+                # Ищем "?" как отдельный символ
+                regex = r'(^| )\?( |$)'  # проверяем пробелы вокруг
+                matches = re.findall(regex, text_lower)
+                count = len(matches)
+            else:
+                # Для текста без лишней пунктуации ищем целые слова/фразы
+                regex = r'\b' + re.escape(pattern) + r'\b'
+                count = len(re.findall(regex, text_clean, flags=re.IGNORECASE))
+            category_count += count
+        score += category_count * category['weight']
+        print(f"Category: {category}, Count: {category_count}, Score Contribution: {category_count * category['weight']}")
+
+    # Нормализация
+    normalized_score = 1 / (1 + math.exp(-score / 2))
+    print(f"Total Score: {score}, Normalized Score: {normalized_score}")
+    return normalized_score
 
 # /<UTILITIES>
 
 # <REWARDS>
-
-def format_compliance_with_answer_reward(text: str) -> float:
-    num_reason_open  = text.count("<think>")
-    num_reason_close = text.count("</think>")
-    num_ans_open     = text.count("<answer>")
-    num_ans_close    = text.count("</answer>")
-    if (num_reason_open == 1 and 
-        num_reason_close == 1 and
-        num_ans_open == 1 and
-        num_ans_close == 1):
-        return 0.2
-    else:
-        return 0.0
-
-def format_compliance_without_answer_reward(text: str) -> float:
-    num_reason_open  = text.count("<think>")
-    num_reason_close = text.count("</think>")
-    if (num_reason_open == 1 and 
-        num_reason_close == 1):
-        return 0.2
-    else:
-        return 0.0
-
-def format_compliance_bormann_reward(text: str) -> float:
-    num_reason_open  = text.count("<think>")
-    num_reason_close = text.count("</think>")
-    num_diag_open     = text.count("<diagram>")
-    num_diag_close    = text.count("</diagram>")
-    if (num_reason_open == 1 and 
-        num_reason_close == 1 and
-        num_diag_open == 1 and
-        num_diag_close == 1):
-        return 0.2
-    else:
-        return 0.0
 
 def format_reward(completions: list, **kwargs) -> list[float]:
     """
@@ -92,41 +117,10 @@ def format_reward(completions: list, **kwargs) -> list[float]:
     rewards = []
     for comp in completions:
         content = comp[0]["content"]
-        if check_xml_structure(content, ('think', 'diagram')):
+        if check_xml_structure(content, ('think')):
             rewards.append(1.0 if '\n' in get_xml_content(content, 'think') else 0.5)
         else:
             rewards.append(0.0)
-    return rewards
-
-def bormann_format_reward(completions: list, **kwargs) -> list[float]:
-    """
-    Bormann format reward function (with diagrams)
-    """
-    rewards = []
-    for comp in completions:
-        content = comp[0]["content"]
-        reward = 0.0
-        
-        # Основные проверки
-        reason_valid = is_valid_xml_block(content, "think")
-        diagram_valid = is_valid_xml_block(content, "diagram")
-
-        if "<think>" in content and "</think>" in content:
-            reason_content = content.split("<think>")[1].split("</think>")[0]
-            has_multiline = any(line.strip() for line in reason_content.splitlines())
-        else:
-            has_multiline = False
-
-        # Начисление наград
-        if reason_valid:
-            reward += 0.6                           # Базовый reward за структуру
-            reward += 0.1 if has_multiline else 0   # Бонус за многострочность
-            if diagram_valid:
-                reward += 0.3                       # Максимальный бонус за диаграмму
-        
-        # Ограничение и добавление в результаты
-        rewards.append(min(reward, 1.0))
-    
     return rewards
 
 def russian_vocabulary_reward(completions: list, **kwargs) -> List[float]:
@@ -156,87 +150,66 @@ def russian_vocabulary_reward(completions: list, **kwargs) -> List[float]:
                 
         valid_ratio = valid_count / len(words)
         
-        if valid_ratio >= 0.95:
-            reward = 1.0
-        elif valid_ratio >= 0.85:
-            reward = 0.8
-        elif valid_ratio >= 0.75:
-            reward = 0.6
-        elif valid_ratio >= 0.5:
-            reward = 0.3
-        else:
-            reward = 0.0
+        if valid_ratio >= 0.95:     reward = 1.0
+        elif valid_ratio >= 0.85:   reward = 0.8
+        elif valid_ratio >= 0.75:   reward = 0.6
+        elif valid_ratio >= 0.5:    reward = 0.3
+        else:                       reward = 0.0
             
         rewards.append(round(reward, 2))
     
     return rewards
 
-def multilingual_coherence_reward(completions: list, **kwargs) -> List[float]:
+def multilingual_coherence_penalty(completions: list, **kwargs) -> List[float]:
     """
-    Комплексная проверка с жёстким штрафом за:
-    - Смешанные алфавиты
+    Комплексная проверка с рациональными штрафами за:
+    - Смешанные алфавиты внутри слов
     - Китайские иероглифы
-    - Несоответствие языку
+    - Длинные иностранные последовательности
+    
+    Возвращает:
+    - 0.0 если нет нарушений
+    - Прогрессивные штрафы от -0.1 до -2.0
     """
-    # Регулярные выражения
-    WORD_PATTERN = re.compile(r'''
-        \b
-        (?![\d_]+(?:\b|_))      # Исключаем чисто числовые
-        [^\s\u4E00-\u9FFF]+     # Любые символы кроме пробелов и китайских иероглифов
-        |                       # ИЛИ
-        [\u4E00-\u9FFF]+        # Отдельные китайские иероглифы
-        \b
-    ''', re.IGNORECASE | re.VERBOSE | re.UNICODE)
-    
-    CHINESE_CHAR = re.compile(r'[\u4E00-\u9FFF\u3400-\u4DBF\uF900–\uFAFF]')  # Все основные китайские символы
-    MIXED_ALPHABET = re.compile(r'''
-        (?:[a-z].*[а-яё]|      # Смесь латиницы и кириллицы
-        [а-яё].*[a-z])         # В любом порядке
-    ''', re.IGNORECASE | re.VERBOSE | re.UNICODE)
+    # Расширенные регулярные выражения
+    CHINESE_CHAR = re.compile(r'[\u4E00-\u9FFF\u3400-\u4DBF\uF900-\uFAFF]')
+    MIXED_ALPHABET = re.compile(
+        r'\b(?:[a-zа-яё]*[a-z][a-zа-яё]*[а-яё][a-zа-яё]*|[а-яёa-z]*[а-яё][a-zа-яё]*[a-z][a-zа-яё]*)\b', 
+        re.IGNORECASE | re.UNICODE
+    )
+    TECHNICAL_BLOCKS = re.compile(r'`.*?`|\\[a-z]+|\$.*?\$|http\S+', re.IGNORECASE)
 
-    rewards = []
+    penalties = []
     for completion in completions:
-        text = completion[0]['content'] if isinstance(completion, list) else completion['content']
-        
-        # Находим все слова и отдельные китайские символы
-        words = WORD_PATTERN.findall(text)
-        if not words:
-            rewards.append(1.0)
-            continue
-            
-        # Подсчёт ошибок
-        error_score = 0
-        for word in words:
-            penalty = 0
-            # Жёсткий штраф за китайские символы (3x вес)
-            if CHINESE_CHAR.search(word):
-                penalty += 5 * len(CHINESE_CHAR.findall(word))
-                
-            # Штраф за смешанные алфавиты
-            if MIXED_ALPHABET.search(word):
-                penalty += 5  # Фиксированный штраф за слово
-                
-            error_score += min(penalty, 10) # 10 штрафных баллов за слово
-        
-        # Нормализация ошибок
-        max_possible_errors = 5 * len(words)
-        error_ratio = error_score / max_possible_errors if max_possible_errors > 0 else 0
-        
-        # Экспоненциальный штраф
-        reward = max(0.0, 1.0 - (error_ratio ** 1.5))
-        rewards.append(round(reward, 2))
-    
-    return rewards
+        try:
+            text = completion[0].get('content', '') if isinstance(completion, list) else completion.get('content', '')
+        except (AttributeError, KeyError, IndexError):
+            text = ''
 
-def strict_chinese_penalty(completions: list, **kwargs) -> List[float]:
-    rewards = multilingual_coherence_reward(completions, **kwargs)
-    return [
-        0.0 if any(0x4E00 <= ord(c) <= 0x9FFF for c in (
-            comp[0]['content'] if isinstance(comp, list) else comp['content']
-        )) 
-        else r 
-        for r, comp in zip(rewards, completions)
-    ]
+        # Игнорируем технические блоки
+        clean_text = TECHNICAL_BLOCKS.sub(' ', text)
+        total_penalty = 0.0
+
+        # 1. Китайские иероглифы (только явные случаи)
+        chinese_chars = CHINESE_CHAR.findall(clean_text)
+        total_penalty += min(len(chinese_chars) * 0.1, 0.5)  # Макс -0.5
+
+        # 2. Смешанные слова (только реальные смеси внутри слов)
+        mixed_words = [
+            word for word in MIXED_ALPHABET.findall(clean_text) 
+            if not (word.isascii() or word.isalpha())
+        ]
+        total_penalty += min(len(mixed_words) * 0.3, 1.0)  # Макс -1.0
+
+        # 3. Длинные иностранные последовательности (только вне технических блоков)
+        foreign_sequences = re.findall(r'[^\u0400-\u04FF\s]{8,}', clean_text)
+        total_penalty += min(len(foreign_sequences) * 0.2, 0.5)  # Макс -0.5
+
+        # Нормализация и ограничение штрафа
+        normalized_penalty = min(total_penalty, 2.0)
+        penalties.append(round(-normalized_penalty, 2))
+
+    return penalties
 
 def russian_purity_reward(completions: list, **kwargs) -> List[float]:
     """
@@ -284,14 +257,10 @@ def russian_purity_reward(completions: list, **kwargs) -> List[float]:
         
         non_russian_ratio = 1 - (len(russian_chars) / len(all_chars))
         
-        if non_russian_ratio < 0.33:
-            reward = 1.0
-        elif non_russian_ratio < 0.5:
-            reward = 0.8
-        elif non_russian_ratio < 0.75:
-            reward = 0.5
-        else:
-            reward = 0.0
+        if non_russian_ratio < 0.33:    reward = 1.0
+        elif non_russian_ratio < 0.5:   reward = 0.8
+        elif non_russian_ratio < 0.75:  reward = 0.5
+        else:                           reward = 0.0
             
         rewards.append(reward)
     
@@ -335,12 +304,9 @@ def russian_coherence_reward(completions: list, **kwargs) -> List[float]:
                 
         correct_ratio = 1 - (incorrect_count / len(russian_words))
         
-        if correct_ratio > 0.8:
-            reward = 1.0
-        elif correct_ratio > 0.6:
-            reward = 0.5
-        else:
-            reward = 0.0
+        if correct_ratio > 0.8:     reward = 1.0
+        elif correct_ratio > 0.6:   reward = 0.5
+        else:                       reward = 0.0
             
         rewards.append(reward)
     
@@ -371,10 +337,8 @@ def correctness_reward(
     extracted_responses = [extract_boxed_answer(r) for r in responses]
     
     if verbose:
-        # Clear screen between evaluations for better readability
         print('\033c', end='')
         
-        # Print formatted evaluation
         print(format_box(
             "Evaluation Result", 
             f"Question: {question[:70]}..." if len(question) > 70 else question,
@@ -399,7 +363,6 @@ def correctness_reward(
             width=60
         )
         
-        # Detailed view in terminal-friendly format
         print_section("Detailed Comparison", 
                     f"Extracted Answer: {extracted_responses[0]}\n"
                     f"Matches Expected: {extracted_responses[0] == answer[0]}\n"
@@ -407,79 +370,63 @@ def correctness_reward(
 
     return [2.0 if r == a else 0.0 for r, a in zip(extracted_responses, answer)]
 
-def accuracy_reward(completions: list, solution: list, **kwargs) -> list[float]:
+def accuracy_reward(prompts: list, completions: list, answer: list, **kwargs) -> list[float]:
     """
     Reward function that evaluates the accuracy of model completions against the ground truth.
 
     This function checks if the completions generated by the model match the expected solutions.
-    It first attempts to parse the ground truth solution using LaTeX parsing. If successful, it then
-    parses the model's completion and compares the two. A reward of 1.0 is given if the parsed completion
-    matches the parsed ground truth; otherwise, a reward of 0.0 is given. If the ground truth cannot be parsed,
-    a reward of 1.0 is assigned to skip this example.
+    Both the solution and the completion are parsed using the same LaTeX parsing configuration
+    to ensure consistent comparison. If the solution cannot be parsed, a reward of 0.0 is assigned.
 
     Args:
-        completions (list): A list of model-generated completions, where each completion is expected to be a 
-                            dictionary containing a "content" key with the generated text.
+        completions (list): A list of model-generated completions, where each completion is a list of
+                            dictionaries containing a "content" key with the generated text.
         solution (list): A list of ground truth solutions corresponding to the completions.
-        **kwargs: Additional keyword arguments that may be used for further customization (not utilized in this function).
+        **kwargs: Additional keyword arguments (e.g., for logging or custom extraction configs).
 
     Returns:
-        list[float]: A list of rewards for each completion, where each reward is either 1.0 or 0.0 based on the 
-                     accuracy of the completion compared to the ground truth.
+        list[float]: A list of rewards (1.0 or 0.0) based on the accuracy of each completion.
     """
     contents = [completion[0]["content"] for completion in completions]
     rewards = []
     
-    for content, sol in zip(contents, solution):
+    extraction_config = LatexExtractionConfig(
+        normalization_config=NormalizationConfig(
+            nits=True,
+            malformed_operators=False,
+            basic_latex=True,
+            equations=True,
+            boxed="all",
+            units=True,
+        ),
+        boxed_match_priority=1,
+        try_extract_without_anchor=False,
+    )
+    
+    for content, sol in zip(contents, answer):
         gold_parsed = parse(
             sol,
-            extraction_mode="first_match",
-            extraction_config=[LatexExtractionConfig()],
+            extraction_mode="any_match",
+            extraction_config=[extraction_config],
         )
         
-        if len(gold_parsed) != 0:
-            answer_parsed = parse(
-                content,
-                extraction_config=[
-                    LatexExtractionConfig(
-                        normalization_config=NormalizationConfig(
-                            nits=False,
-                            malformed_operators=False,
-                            basic_latex=True,
-                            equations=True,
-                            boxed="all",
-                            units=True,
-                        ),
-                        boxed_match_priority=0,
-                        try_extract_without_anchor=False,
-                    )
-                ],
-                extraction_mode="first_match",
-            )
-            reward = float(verify(answer_parsed, gold_parsed))
-        else:
-            reward = 1.0
-        rewards.append(reward)
-    return rewards
-
-def latex_solution_reward(completions, **kwargs) -> list[float]:
-    """Evaluates completions by checking if they match the correct solution."""
-    solutions = kwargs.get("solution", [])
-    completion_contents = [c[0]["content"] for c in completions]
-    rewards = []
-
-    for content, solution in zip(completion_contents, solutions):
-        parsed_solution = parse(solution, extraction_mode="first_match", extraction_config=[LatexExtractionConfig()])
-        parsed_content = parse(content, extraction_mode="first_match", extraction_config=[LatexExtractionConfig()])
-
-        if not parsed_solution:
-            rewards.append(1.0)  # Default reward when no valid solution exists
+        if not gold_parsed:
+            rewards.append(0.0)
             continue
-        try:
-            rewards.append(float(verify(parsed_content, parsed_solution)))
-        except Exception:
-            rewards.append(0.0)  # Return 0 if verification fails
-
+        
+        answer_parsed = parse(
+            content,
+            extraction_mode="any_match",
+            extraction_config=[extraction_config],
+        )
+        
+        reward = 1.0 if (
+            answer_parsed and verify(
+                answer_parsed, gold_parsed
+                )
+            ) else 0.0
+        rewards.append(reward)
+    
     return rewards
 
 def redundancy_penalty(completions, **kwargs):
@@ -500,7 +447,44 @@ def equation_structure_reward(completions, **kwargs):
     for comp in completions:
         content = comp[0]['content']
         pattern = r'\\boxed{\s*([+-]?\d+\.?\d*)\s*}'
-        rewards.append(1.0 if re.search(pattern, content) else 0.0)
+        rewards.append(0.2 if re.search(pattern, content) else 0.0)
+    return rewards
+
+def similarity_reward(prompts: list, completions: list, reference_answers: list, **kwargs) -> List[float]:
+    """
+    Оценка сходства между сгенерированными ответами и эталонными ответами.
+    
+    Args:
+        completions: Список сгенерированных ответов.
+        reference_answers: Список эталонных ответов.
+        
+    Returns:
+        Список значений награды на основе сходства.
+    """
+    texts = [comp[0]['content'] for comp in completions] + reference_answers
+    vectorizer = TfidfVectorizer().fit(texts)
+    tfidf_matrix = vectorizer.transform(texts)
+    
+    similarity_matrix = cosine_similarity(tfidf_matrix)
+    
+    rewards = []
+    num_completions = len(completions)
+    
+    for i in range(num_completions):
+        sim_score = similarity_matrix[i][num_completions]
+
+        if sim_score > 0.8:     reward = 1.0
+        elif sim_score > 0.6:   reward = 0.5
+        elif sim_score > 0.3:   reward = 0.1
+        else:                   reward = 0
+
+        print(f"\n\033[1mREWARD ANALYSIS\033[0m")
+        print(format_reward_bar(sim_score, reward))
+        print(f"\n\033[90mSimilarity breakdown:\033[0m")
+        print(f"- Raw similarity score: {sim_score:.4f}")
+        print(f"- Reward tier: {sim_score}")
+        print("-" * 50 + "\n")
+    
     return rewards
 
 def semantic_similarity_reward(
@@ -582,5 +566,123 @@ def semantic_similarity_reward(
     except Exception as e:
         logging.warning(f"Semantic similarity reward failed: {str(e)}")
         return [0.0] * len(completions)
+
+def ngram_penalty(
+    completions: list, 
+    ngram_size: int = 4, 
+    max_penalty: float = -1.0, 
+    min_safe_ngrams: int = 5,
+    **kwargs
+) -> List[float]:
+    """
+    Штраф за повторяющиеся фразы с защитой от ложных срабатываний.
+    
+    Особенности:
+    - Игнорирует стоп-слова в N-граммах
+    - Защита от коротких текстов
+    - Прогрессивная шкала штрафов
+    - Фильтрация служебных конструкций
+    """
+    # Стоп-слова для русского и английского
+    STOP_WORDS = {
+        'и', 'в', 'на', 'с', 'по', 'для', 'не', 'из', 'от', 'это',
+        'the', 'and', 'of', 'to', 'a', 'in', 'that', 'is', 'it'
+    }
+    
+    penalties = []
+    for comp in completions:
+        content = comp[0]['content'].lower()
+        
+        # Удаляем технические конструкции перед анализом
+        clean_content = re.sub(r'<.*?>|\$.*?\$|\\\w+', ' ', content)
+        words = [w for w in re.findall(r'\b\w+\b', clean_content) 
+                if w not in STOP_WORDS and len(w) > 2]
+        
+        # Формируем N-граммы
+        ngrams = [' '.join(words[i:i+ngram_size]) 
+                 for i in range(len(words) - ngram_size + 1)]
+        
+        if len(ngrams) < min_safe_ngrams:
+            penalties.append(0.0)
+            continue
+            
+        # Считаем уникальность
+        total = len(ngrams)
+        unique = len(set(ngrams))
+        uniqueness = unique / total
+        
+        # Квадратичная прогрессия штрафа
+        penalty = -( (1 - uniqueness) ** 1.5 ) * max_penalty
+        
+        # Ограничиваем минимальный штраф
+        penalties.append(max(penalty, max_penalty))
+    
+    return [round(p, 2) for p in penalties]
+
+def ngram_reward(
+    completions: list,
+    ngram_size: int = 4,
+    max_reward: float = 1.0,
+    min_safe_ngrams: int = 5,
+    **kwargs
+) -> List[float]:
+    """
+    Бонус за уникальные фразы с защитой от ложных срабатываний.
+    
+    Особенности:
+    - Игнорирует стоп-слова в N-граммах
+    - Защита от коротких текстов
+    - Прогрессивная шкала бонусов
+    - Фильтрация служебных конструкций
+    """
+    # Стоп-слова для русского и английского
+    STOP_WORDS = {
+        'и', 'в', 'на', 'с', 'по', 'для', 'не', 'из', 'от', 'это',
+        'the', 'and', 'of', 'to', 'a', 'in', 'that', 'is', 'it'
+    }
+    
+    rewards = []
+    for comp in completions:
+        content = comp[0]['content'].lower()
+        
+        # Удаляем технические конструкции перед анализом
+        clean_content = re.sub(r'<.*?>|\$.*?\$|\\\w+', ' ', content)
+        words = [w for w in re.findall(r'\b\w+\b', clean_content) 
+                if w not in STOP_WORDS and len(w) > 2]
+        
+        # Формируем N-граммы
+        ngrams = [' '.join(words[i:i+ngram_size]) 
+                 for i in range(len(words) - ngram_size + 1)]
+        
+        if len(ngrams) < min_safe_ngrams:
+            rewards.append(0.0)
+            continue
+            
+        # Считаем уникальность
+        total = len(ngrams)
+        unique = len(set(ngrams))
+        uniqueness = unique / total
+        
+        # Квадратичная прогрессия бонуса
+        reward = (uniqueness ** 1.5) * max_reward
+        
+        # Ограничиваем максимальный бонус
+        rewards.append(min(reward, max_reward))
+    
+    return [round(b, 2) for b in rewards]
+
+def reflection_reward(completions, **kwargs):
+    rewards = []
+    for comp in completions:
+        text = comp[0]['content']
+        
+        reflection_content = extract_thinking(text)
+        
+        # Глубина рефлексии
+        cognitive_score = detect_reflection_marks(reflection_content) * 3.0
+        
+        rewards.append(max(cognitive_score, 0.0))
+    
+    return [round(r, 2) for r in rewards]
 
 # </REWARDS>

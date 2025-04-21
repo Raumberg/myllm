@@ -89,6 +89,12 @@ def extract_thinking_and_answer(text: str) -> Tuple[str]:
 
     return (reasoning_str, answer_str)
 
+def extract_thinking(text: str) -> str | None:
+    reasoning_pat = re.compile(r"<think>(.*?)</think>", re.DOTALL)
+    reasoning_match = reasoning_pat.search(text)
+    reasoning_str = reasoning_match.group(1).strip() if reasoning_match else ""
+    return reasoning_str
+
 def extract_boxed_answer(text: str) -> str | None:
     """Extracts content within \boxed{} in a given text.
 
@@ -97,17 +103,23 @@ def extract_boxed_answer(text: str) -> str | None:
 
     Returns:
         Content inside \boxed{} as a stripped string if marker exists, otherwise None.
-
-    Example:
-        >>> extract_boxed_answer("The result is \\boxed{42}")
-        '42'
-        >>> extract_boxed_answer("No boxed answer here")
-        None
     """
-    match = re.search(r'\\boxed{(.*?)}', text)
+    start = text.find(r'\boxed{')
+    if start == -1:
+        return None
     
-    if match:
-        return match.group(1).strip()
+    end = start + len(r'\boxed{')
+    brace_count = 1 
+
+    while end < len(text) and brace_count > 0:
+        if text[end] == '{':
+            brace_count += 1
+        elif text[end] == '}':
+            brace_count -= 1
+        end += 1
+
+    if brace_count == 0:
+        return text[start + len(r'\boxed{'):end - 1].strip()
     
     return None
 

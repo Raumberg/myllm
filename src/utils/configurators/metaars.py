@@ -19,10 +19,10 @@ class MetaArguments:
         default="default-project",
         metadata={"help": "Name of logging project (wandb or clearml)"}
     )
-    pad_token: str | None = field(
-        default=None,
-        metadata={"help": "Special pad token"}
-    )
+    # pad_token: str | None = field(
+    #     default=None,
+    #     metadata={"help": "Special pad token"}
+    # )
     bos_token: str | None = field(
         default=None,
         metadata={"help": "Special bos token"}

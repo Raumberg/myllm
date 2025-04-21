@@ -117,7 +117,7 @@ def main():
             " Make sure to pass --lora_task_type CAUSAL_LM when using this script."
         )
 
-    setup_model_and_tokenizer(args, model, tokenizer, args.max_seq_length)
+    setup_model_and_tokenizer(args, model, args, tokenizer, args.max_seq_length)
 
     if PartialState().is_main_process:
         k, v = [
@@ -176,13 +176,12 @@ def main():
         model=model,
         processing_class=tokenizer,
         reward_funcs=[
-            rwd.equation_structure_reward,
-            # rwd.redundancy_penalty,
             rwd.correctness_reward,
-            rwd.multilingual_coherence_reward,
-            rwd.strict_chinese_penalty,
-            rwd.bormann_format_reward,
-            rwd.russian_purity_reward
+            rwd.accuracy_reward,
+            rwd.format_reward,
+            # rwd.russian_purity_reward,
+            # rwd.ngram_reward,
+            # rwd.reflection_reward
         ],
         args=grpo_config,
         train_dataset=train_dataset,

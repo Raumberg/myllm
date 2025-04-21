@@ -21,7 +21,7 @@
         "warmup_min_lr": "auto",
         "warmup_max_lr": "auto",
         "warmup_num_steps": 0,
-        "total_num_steps": 3737
+        "total_num_steps": 3363
         }
      },
   

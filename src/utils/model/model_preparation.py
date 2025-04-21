@@ -16,6 +16,7 @@ from src.utils.configurators import MetaArguments
 def setup_model_and_tokenizer(
         args: MetaArguments,
         model: PreTrainedModel,
+        global_config,
         tokenizer: PreTrainedTokenizer,
         max_seq_len: int = None
 ):
@@ -34,8 +35,8 @@ def setup_model_and_tokenizer(
         if model.generation_config:
             model.generation_config.bos_token_id = tokenizer.bos_token_id
 
-    if tokenizer.pad_token != args.pad_token:
-        tokenizer.pad_token = args.pad_token
+    if tokenizer.pad_token != global_config.pad_token:
+        tokenizer.pad_token = global_config.pad_token
         model.config.pad_token_id = tokenizer.pad_token_id
         if model.generation_config:
             model.generation_config.pad_token_id = tokenizer.pad_token_id

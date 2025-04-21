@@ -35,7 +35,7 @@ from src.utils.collators import DataCollatorForCompletionOnlyLM
 
 # | FUSION |
 from src.utils.kernels import get_liger_kernel
-from src.fusion.dyntanh import FusedDynTanhPatch
+# from src.fusion.dyntanh import FusedDynTanhPatch
 
 # | STDOUT | 
 from src.utils.stdout import print_configs, inspect_model, print_table
@@ -96,13 +96,13 @@ def main():
     # ================== #
     if sft_config.use_liger:
         get_liger_kernel()
-    if args.patch_dyntanh:
-        model = FusedDynTanhPatch(
-            model=model,
-            copy_params=False,
-            verbose=True,
-            dtype=torch.bfloat16 if sft_config.bf16 else torch.float16
-        )
+    # if args.patch_dyntanh:
+    #     model = FusedDynTanhPatch(
+    #         model=model,
+    #         copy_params=False,
+    #         verbose=True,
+    #         dtype=torch.bfloat16 if sft_config.bf16 else torch.float16
+    #     )
 
     if PartialState().is_main_process:  
         print(model)
@@ -126,7 +126,7 @@ def main():
             " Make sure to pass --lora_task_type CAUSAL_LM when using this script."
         )
 
-    setup_model_and_tokenizer(args, model, tokenizer, sft_config.max_seq_length)
+    setup_model_and_tokenizer(args, model, sft_config, tokenizer, sft_config.max_seq_length)
 
     if PartialState().is_main_process:
         k, v = [

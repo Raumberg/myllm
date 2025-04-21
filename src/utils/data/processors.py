@@ -1,5 +1,6 @@
 from transformers import AutoTokenizer
 from .extraction import extract_hash_answer
+import random
 
 def history_row_processor(
         row: str, 
@@ -75,9 +76,19 @@ def default_row_processor(
     )
 
 def grpo_row_processor(row, args):
+    reflection_chance = args.reflection_chance if args.reflection_chance else None
+    reflection_prompt = args.reflection_prompt if args.reflection_prompt else None
+
+    system_prompt = args.system_prompt
+
+    # Добавляем reflection prompt только если есть вероятность и промпт
+    if reflection_chance > 0 and reflection_prompt:
+        if random.random() < reflection_chance:
+            system_prompt = f"{args.system_prompt}\n\n{reflection_prompt}"
+
     result = {
         "prompt": [
-            {'role': 'system', 'content': args.system_prompt},
+            {'role': 'system', 'content': system_prompt},
             {'role': 'user', 'content': row[args.problem_field]} 
         ]
     }

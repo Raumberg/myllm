@@ -39,6 +39,18 @@ class GRPOScriptArguments(MetaArguments):
         default="<|start_header_id|>assistant<|end_header_id|>\n\n",
         metadata={"help": "Assistant message template for the training only on completions"}
     )
+    pad_token: str | None = field(
+        default=None,
+        metadata={"help": "Special pad token"}
+    )
+    bos_token: str | None = field(
+        default=None,
+        metadata={"help": "Special bos token"}
+    )
+    eos_token: str | None = field(
+        default=None,
+        metadata={"help": "Special eos token"}
+    )
     num_gen_examples: int | None = field(
         default=50,
         metadata={"help": "Number of examples to generate on eval phase"}
@@ -74,6 +86,14 @@ class GRPOScriptArguments(MetaArguments):
     model_name: str | None = field(
         default='',
         metadata={"help": "Model Repository (Unsloth)"}
+    )
+    reflection_prompt: str | None = field(
+        default=None,
+        metadata={"help": "Reflection prompt injection to use."}
+    )
+    reflection_chance: float | None = field(
+        default=0.2,
+        metadata={"help": "The chance of reflection prompt injection to a sample of a dataset."}
     )
 
     def __post_init__(self):

@@ -1,0 +1,32 @@
+[project]
+name = "myllmv2"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "torch>=2.7.0",
+    "transformers>=4.48.3",
+    "accelerate>=1.8.0",
+    "deepspeed>=0.17.1",
+    "datasets>=3.6.0",
+    "typer[all]>=0.15.1",
+    "pyyaml>=6.0.2",
+    "trl>=0.18.2",
+    "peft>=0.15.2",
+    "wandb>=0.20.1",
+    "bitsandbytes>=0.46.0",
+    "latex2sympy2_extended>=1.10.1",
+    "math_verify>=0.7.0"
+]
+
+[project.scripts]
+myllm = "myllm.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "."}
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["myllm*"]
+exclude = ["configs*"]

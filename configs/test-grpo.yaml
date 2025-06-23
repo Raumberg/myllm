@@ -1,0 +1,61 @@
+model:
+  name: attn-signs/GPTR-8b-v2
+  dtype: bf16
+  use_peft: true  # light LoRA fine-tune during GRPO
+
+training:
+  micro_batch_size: 1      # keep tiny for local GPU
+  gradient_accumulation_steps: 1
+  epochs: 1                # single epoch smoke-test
+  lr: 2e-5
+  seed: 42
+  grpo:
+    num_generations: 2
+    use_vllm: false 
+    max_completion_length: 1024
+    num_iterations: 1
+    scale_rewards: false 
+    beta: 0.04 
+    epsilon_high: 0.3
+    loss_type: dr_grpo # can be grpo|bnpo|dr_grpo
+    mask_truncated_completions: true 
+    use_liger_loss: true
+    reward_funcs:
+      # Reward list can mix short and expanded specs
+      - correctness_reward:2            # weight 2×
+      - russian_purity_reward@0.5       # weight shorthand with @
+      - redundancy_penalty              # default weight 1
+      - reflection_reward:0.3           # low weight
+      - { ngram_penalty: 
+        { 
+          ngram_size: 4, 
+          max_penalty: -0.8 
+        } }
+      - { log_completions_reward: 
+        { 
+          every_n_steps: 4, 
+          max_samples: 4, 
+          output_dir: "experiments/logs" 
+          } }
+
+data:
+  name: attn-signs/gromov-4                 # tiny public dataset for quick run
+  split: "train[:2%]"
+  max_length: 1024
+  collator_type: standard               # plain LM loss
+  chat_template: null
+  problem_field: problem
+  answer_field: answer
+  processor_type: grpo
+
+engine:
+  name: deepspeed
+  config: configs/deepspeed/stage_3.json
+
+logging:
+  level: info
+  suppress: ["transformers"]
+  disable_tqdm: true
+
+wandb:
+  enable: false 

@@ -1,0 +1,61 @@
+model:
+  name: attn-signs/GPTR-8b-v2
+  dtype: bf16
+  use_peft: true
+  lora_r: 16
+  lora_alpha: 32
+  lora_dropout: 0.05
+  lora_target_modules: ["q_proj", "k_proj", "v_proj", "o_proj"]
+  lora_task_type: "CAUSAL_LM"
+
+  # Quantisation – either 4bit or 8bit (mutually exclusive)
+  use_4bit: false
+  use_8bit: false  # load in 8-bit via bitsandbytes
+  bnb_compute_dtype: "bf16"  # compute dtype for 4-bit if enabled
+
+  # Attention optimisation backend (optional): xformers | flash_attention_2
+  attn_implementation: flash_attention_2
+
+wandb:
+  enable: true
+  project: myllm-experiments
+  name: gptr8b-sft-run1
+
+training:
+  micro_batch_size: 1
+  gradient_accumulation_steps: 8
+  epochs: 1
+  lr: 2.0e-5
+
+logging:
+  level: warning
+  suppress: ["transformers", "datasets", "deepspeed"]
+  warnings_ignore: ["use_cache=True", "TORCH_CUDA_ARCH_LIST"]
+  disable_tqdm: true
+
+engine:
+  name: deepspeed
+  config: configs/deepspeed/stage_3.json
+
+dataset:
+  name: attn-signs/kolmogorov-3
+  text_field: conversation
+  split: train[:5%]
+  test_size: 0.01        # will derive eval split automatically
+  max_length: 1024
+
+  # Advanced processing
+  processor_type: default          # default | history | grpo
+  system_prompt: "You are a helpful assistant."
+  model_support_system_role: true
+
+  # misc
+  offline: false                  # set true to forbid HF downloads
+  chat_template: null             # provide custom template string if needed
+
+collator:
+  type: completion_only
+  template: "<s>assistant" 
+  ignore_index: -100
+  strict: false
+

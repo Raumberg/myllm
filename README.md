@@ -39,9 +39,9 @@
 
 ```bash
 # editable dev-install (+ruff/pytest/black)
-make -C myllmv2 install-dev
+make -C myllm install-dev
 # or classic
-uv pip install myllm-v2
+uv pip install myllm
 ```
 
 ### Myllm v1 (old version):

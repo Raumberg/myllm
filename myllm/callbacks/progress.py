@@ -62,4 +62,21 @@ class RichProgressCallback(TrainerCallback):
             self.progress.update(self.task_id, description=f"[bold cyan]{phase} loss={loss_val:.4f}")
 
         # Emit a separate console log every log step for detailed metrics
-        self.console.log({k: round(v, 4) if isinstance(v, (float, int)) else v for k, v in logs.items()}) 
+        self.console.log({k: round(v, 4) if isinstance(v, (float, int)) else v for k, v in logs.items()})
+
+        # ------------------------------------------------------------------
+        # Extra: live collator statistics
+        # ------------------------------------------------------------------
+        if self._collator and hasattr(self._collator, "stats"):
+            try:
+                stats = self._collator.stats  # type: ignore[attr-defined]
+                # Format as succinct string to avoid flooding console
+                hits = stats.get("hits", 0)
+                misses = stats.get("misses", 0)
+                trunc = stats.get("truncated", 0)
+                self.console.log(
+                    f"[collator] hits={hits} misses={misses} truncated={trunc} hit_rate={hits / max(hits + misses, 1):.1%}",
+                )
+            except Exception as exc:  # noqa: BLE001
+                # never crash training because of progress callback
+                self.console.log(f"[collator] could not compute stats: {exc}") 

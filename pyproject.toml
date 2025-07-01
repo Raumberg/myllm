@@ -1,7 +1,7 @@
 [project]
-name = "myllmv2"
+name = "myllm"
 version = "0.1.0"
-description = "Add your description here"
+description = "Train your LLM"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -17,7 +17,9 @@ dependencies = [
     "wandb>=0.20.1",
     "bitsandbytes>=0.46.0",
     "latex2sympy2_extended>=1.10.1",
-    "math_verify>=0.7.0"
+    "math_verify>=0.7.0",
+    "transformer_engine>=2.4.0",
+    "liger-kernel>=0.5.10",
 ]
 
 [project.scripts]

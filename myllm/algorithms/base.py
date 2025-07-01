@@ -7,8 +7,11 @@ from typing import Any, Dict
 
 import torch
 from torch.utils.data import DataLoader
+import os
 
 from transformers import TrainingArguments
+
+from myllm.utils.std import infer_dtype
 
 __all__ = ["BaseTrainer"]
 
@@ -51,8 +54,6 @@ class BaseTrainer(ABC):
         # Ensure numeric LR
         lr_val = self._ensure_numeric_lr(train_cfg.lr)
 
-        import os
-
         # Determine local_rank for distributed runs so that TrainingArguments.device maps correctly.
         local_rank_env = int(os.environ.get("LOCAL_RANK", -1))
 
@@ -71,6 +72,7 @@ class BaseTrainer(ABC):
             gradient_checkpointing=train_cfg.gradient_checkpointing,
             local_rank=local_rank_env,
             disable_tqdm=self.cfg.logging.disable_tqdm,
+            use_liger_kernel=train_cfg.use_liger_kernel,
         )
 
         if engine_cfg.name == "deepspeed" and getattr(engine_cfg, "config", None):
@@ -90,15 +92,12 @@ class BaseTrainer(ABC):
     # ------------------------------------------------------------------
     @staticmethod
     def _dtype_flags(dtype: str):  # noqa: D401
-        d = str(dtype).lower()
-        return (d in {"fp16", "float16", "16"}, d == "bf16")
+        return (infer_dtype(dtype) == torch.float16, infer_dtype(dtype) == torch.bfloat16)
 
     def _setup_wandb_env(self):  # noqa: D401
         wb = self.cfg.wandb
         if not wb.enable:
             return
-
-        import os
 
         os.environ.setdefault("WANDB_PROJECT", wb.project)
         if wb.entity:
@@ -127,7 +126,6 @@ class BaseTrainer(ABC):
             task_type=task_type,
         )
 
-    # Default – single step iteration not used (algos delegate to HF Trainer)
     def _iteration(self, batch: Any):  # noqa: D401
         raise NotImplementedError
 

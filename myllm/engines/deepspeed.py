@@ -22,6 +22,36 @@ except ModuleNotFoundError as exc:  # pragma: no cover — optional dependency
     ) from exc
 
 logger = logging.getLogger(__name__)
+__all__ = ["prepare"] 
+
+# ---------------------------------------------------------------------------
+# Helper utilities
+# ---------------------------------------------------------------------------
+
+
+def _is_auto(val: Any) -> bool:  # noqa: D401
+    """Return True if value is the special DeepSpeed placeholder 'auto'."""
+
+    return isinstance(val, str) and val.lower() == "auto"
+
+
+def _replace_auto(val: Any, replacement: Any):  # noqa: D401
+    """Replace the string 'auto' (case-insensitive) with *replacement*."""
+
+    return replacement if _is_auto(val) else val
+
+
+def _assert_no_auto(cfg: dict[str, Any], path: str = "root") -> None:  # noqa: D401
+    """Recursively walk *cfg* and raise if any 'auto' placeholders remain."""
+
+    if isinstance(cfg, dict):
+        for k, v in cfg.items():
+            _assert_no_auto(v, f"{path}.{k}")
+    elif isinstance(cfg, list):
+        for i, v in enumerate(cfg):
+            _assert_no_auto(v, f"{path}[{i}]")
+    elif _is_auto(cfg):
+        raise ValueError(f"DeepSpeed config still contains 'auto' value at {path}")
 
 
 def _load_config(config_path: str | os.PathLike | None) -> dict[str, Any]:
@@ -44,7 +74,12 @@ def _load_config(config_path: str | os.PathLike | None) -> dict[str, Any]:
     return cfg
 
 
-def _tune_ds_config(ds_cfg: dict[str, Any], cfg: Any, model: torch.nn.Module) -> None:  # noqa: D401, C901
+def _tune_ds_config(
+    ds_cfg: dict[str, Any],
+    cfg: Any,
+    model: torch.nn.Module,
+    dataloader_len: int | None = None,
+) -> None:  # noqa: D401, C901
     """Mutate ``ds_cfg`` in-place to better match current run.
 
     1. Auto-set ``train_batch_size`` if missing.
@@ -56,18 +91,23 @@ def _tune_ds_config(ds_cfg: dict[str, Any], cfg: Any, model: torch.nn.Module) ->
     # ------------------------------------------------------------------
     # Auto batch size
     # ------------------------------------------------------------------
-    train_cfg = getattr(cfg, "training", None)
+    train_cfg = cfg.training
     world_size = int(os.environ.get("WORLD_SIZE", "1"))
-    if train_cfg and "train_batch_size" not in ds_cfg:
+    if train_cfg:
         micro = getattr(train_cfg, "micro_batch_size", 1)
         grad_acc = getattr(train_cfg, "gradient_accumulation_steps", 1)
-        ds_cfg["train_batch_size"] = micro * grad_acc * world_size
 
-    # ------------------------------------------------------------------
-    # Make sure gradient accumulation matches config (if user forgot)
-    # ------------------------------------------------------------------
-    if train_cfg:
-        ds_cfg.setdefault("gradient_accumulation_steps", getattr(train_cfg, "gradient_accumulation_steps", 1))
+        ds_cfg["train_micro_batch_size_per_gpu"] = _replace_auto(
+            ds_cfg.get("train_micro_batch_size_per_gpu", "auto"), micro
+        )
+
+        ds_cfg["gradient_accumulation_steps"] = _replace_auto(
+            ds_cfg.get("gradient_accumulation_steps", "auto"), grad_acc
+        )
+
+        ds_cfg["train_batch_size"] = _replace_auto(
+            ds_cfg.get("train_batch_size", "auto"), micro * grad_acc * world_size
+        )
 
     # ------------------------------------------------------------------
     # ZeRO-3 bucket tuning (helps with OOM)
@@ -83,19 +123,109 @@ def _tune_ds_config(ds_cfg: dict[str, Any], cfg: Any, model: torch.nn.Module) ->
 
         if hidden_size:
             factor = hidden_size * hidden_size
-            zero_opt.setdefault("reduce_bucket_size", factor)
-            zero_opt.setdefault("stage3_param_persistence_threshold", 10 * hidden_size)
-            zero_opt.setdefault("stage3_prefetch_bucket_size", int(0.9 * factor))
+
+            zero_opt["reduce_bucket_size"] = _replace_auto(
+                zero_opt.get("reduce_bucket_size", "auto"), factor
+            )
+
+            zero_opt["stage3_param_persistence_threshold"] = _replace_auto(
+                zero_opt.get("stage3_param_persistence_threshold", "auto"), 10 * hidden_size
+            )
+
+            zero_opt["stage3_prefetch_bucket_size"] = _replace_auto(
+                zero_opt.get("stage3_prefetch_bucket_size", "auto"), int(0.9 * factor)
+            )
     ds_cfg["zero_optimization"] = zero_opt
+
+    # ------------------------------------------------------------------
+    # Optimizer & scheduler – replace remaining 'auto' placeholders
+    # ------------------------------------------------------------------
+
+    opt_cfg = ds_cfg.get("optimizer", {})
+    opt_params = opt_cfg.get("params", {})
+
+    # LR comes from training cfg if provided, else fallback
+    default_lr = getattr(getattr(cfg, "training", None), "lr", 2e-5)
+
+    if opt_params:
+        opt_params["lr"] = _replace_auto(opt_params.get("lr", "auto"), default_lr)
+        opt_params["betas"] = _replace_auto(opt_params.get("betas", "auto"), (0.9, 0.999))
+        opt_params["eps"] = _replace_auto(opt_params.get("eps", "auto"), 1e-8)
+        opt_params["weight_decay"] = _replace_auto(
+            opt_params.get("weight_decay", "auto"), getattr(getattr(cfg, "training", None), "weight_decay", 0.0)
+        )
+        opt_cfg["params"] = opt_params
+        ds_cfg["optimizer"] = opt_cfg
+
+    sch_cfg = ds_cfg.get("scheduler", {})
+    sch_params = sch_cfg.get("params", {})
+
+    if sch_params:
+        # derive sensible numbers
+        warmup_steps = getattr(getattr(cfg, "training", None), "warmup_steps", 0)
+        epochs = getattr(getattr(cfg, "training", None), "epochs", 1)
+
+        total_steps_estimate: int | None = None
+        if dataloader_len:
+            total_steps_estimate = max(1, dataloader_len * epochs)
+
+        sch_params["warmup_min_lr"] = _replace_auto(sch_params.get("warmup_min_lr", "auto"), 0.0)
+        sch_params["warmup_max_lr"] = _replace_auto(sch_params.get("warmup_max_lr", "auto"), default_lr)
+        sch_params["warmup_num_steps"] = _replace_auto(sch_params.get("warmup_num_steps", "auto"), warmup_steps)
+        if total_steps_estimate is not None:
+            sch_params["total_num_steps"] = _replace_auto(
+                sch_params.get("total_num_steps", "auto"), total_steps_estimate
+            )
+        elif isinstance(sch_params.get("total_num_steps"), str) and sch_params["total_num_steps"] == "auto":
+            # fallback when we cannot compute – remove scheduler to avoid DS error
+            logger.warning(
+                "Removing scheduler section from DeepSpeed config because total_num_steps could not be inferred"
+            )
+            ds_cfg.pop("scheduler", None)
+        else:
+            sch_cfg["params"] = sch_params
+            ds_cfg["scheduler"] = sch_cfg
+
+    # gradient clipping
+    ds_cfg["gradient_clipping"] = _replace_auto(
+        ds_cfg.get("gradient_clipping", "auto"), getattr(getattr(cfg, "training", None), "gradient_clipping", 1.0)
+    )
 
     # ------------------------------------------------------------------
     # Mixed precision default if user omitted
     # ------------------------------------------------------------------
-    model_dtype = getattr(getattr(cfg, "model", None), "dtype", "bf16").lower()
-    if model_dtype in {"fp16", "float16", "16"} and "fp16" not in ds_cfg:
-        ds_cfg["fp16"] = {"enabled": True}
-    elif model_dtype == "bf16" and "bf16" not in ds_cfg:
-        ds_cfg["bf16"] = {"enabled": True}
+    model_dtype = getattr(cfg.model, "dtype", "bf16").lower()
+
+    # Helper to patch 'enabled': 'auto' placeholders
+    def _fix_enabled(section: str, should_enable: bool) -> None:
+        if section in ds_cfg:
+            enabled_val = ds_cfg[section].get("enabled", False)
+            if enabled_val == "auto":
+                ds_cfg[section]["enabled"] = should_enable
+        else:
+            if should_enable:
+                ds_cfg[section] = {"enabled": True}
+
+    if model_dtype in {"fp16", "float16", "16"}:
+        _fix_enabled("fp16", True)
+        _fix_enabled("bf16", False)
+    elif model_dtype == "bf16":
+        _fix_enabled("bf16", True)
+        _fix_enabled("fp16", False)
+    else:  # full precision
+        _fix_enabled("fp16", False)
+        _fix_enabled("bf16", False)
+
+    # ------------------------------------------------------------------
+    # Final validation: ensure no 'auto' remains unless user allowed it
+    # ------------------------------------------------------------------
+
+    auto_fill_flag = True
+    if hasattr(cfg, "engine") and getattr(cfg.engine, "auto_fill", None) is not None:
+        auto_fill_flag = cfg.engine.auto_fill
+
+    if auto_fill_flag:
+        _assert_no_auto(ds_cfg)
 
 
 def _fallback_optimizer(model: torch.nn.Module, cfg: Any) -> torch.optim.Optimizer:  # noqa: D401
@@ -133,7 +263,7 @@ def prepare(
     ds_cfg = _load_config(ds_conf_path)
 
     # Dynamically adjust config based on current run
-    _tune_ds_config(ds_cfg, cfg, model)
+    _tune_ds_config(ds_cfg, cfg, model, dataloader_len)
 
     if all(v not in os.environ for v in ("RANK", "WORLD_SIZE", "LOCAL_RANK")):
         logger.debug("No distributed env vars – configuring fake single-process ranks for DeepSpeed")
@@ -167,5 +297,3 @@ def prepare(
     logger.info("DeepSpeed engine initialized (%s GPUs)", torch.cuda.device_count())
     return engine, engine.module, optimizer, scheduler
 
-
-__all__ = ["prepare"] 

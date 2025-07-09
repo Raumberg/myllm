@@ -43,10 +43,13 @@ class TrainingCfg(BaseModel):
     gradient_accumulation_steps: int = 1
     epochs: int = 1
     lr: float = 2e-5
+    weight_decay: float = 0.0
+    warmup_steps: int = 0
     seed: int = 42
     output_dir: str = "experiments"
     logging_steps: int = 10
     gradient_checkpointing: bool = True
+    gradient_clipping: Optional[float] = 1.0
     grpo: dict[str, Any] = Field(default_factory=dict)
     sft: dict[str, Any] = Field(default_factory=dict)
     ppo: dict[str, Any] = Field(default_factory=dict)

@@ -69,13 +69,6 @@ def train(
     algo_mod = get_algorithm(algo)
     trainer_cls = get_trainer_class(algo_mod)
 
-    # Engine
-    engine_mod = get_engine(engine)
-    engine, _, _, _ = engine_mod.prepare(cfg_obj, model)
-
-    # Trainer
-    trainer = trainer_cls(model, engine, cfg_obj)
-
     # Datasets and dataloaders
     dm = DataModule(cfg_obj.data, cfg_obj.training, tokenizer_name=cfg_obj.model.name)
     dm.setup()
@@ -84,11 +77,18 @@ def train(
     dm.tokenizer_wrapper.sync_with_model(model)
     
     # Select training dataloader
-    dl = dm.get_train_dataloader()
+    train_dataloader = dm.get_train_dataloader()
+
+    # Engine
+    engine_mod = get_engine(engine)
+    engine, _, _, _ = engine_mod.prepare(cfg_obj, model, dataloader_len=len(train_dataloader))
+
+    # Trainer
+    trainer = trainer_cls(model, engine, cfg_obj)
 
     # Training
     ckpt_path = resume_from or cfg_obj.training.resume_from_checkpoint
-    trainer.train(dl, resume_from=str(ckpt_path) if ckpt_path else None)
+    trainer.train(train_dataloader, resume_from=str(ckpt_path) if ckpt_path else None)
 
     typer.echo("Training loop finished.")
 

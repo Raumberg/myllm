@@ -35,32 +35,45 @@ class SFTTrainer(BaseTrainer):
     def __init__(self, model: Any, engine: Optional[Any], cfg: Any):  # noqa: D401
         super().__init__(model, engine, cfg)
 
-        # Build base TrainingArguments via helper
+        if cfg.model.cast_to_fp8 and (cfg.model.use_4bit or cfg.model.use_8bit):
+            raise ValueError(
+                "FP8 training (cast_to_fp8) is mutually exclusive with "
+                "bitsandbytes quantization (use_4bit or use_8bit)."
+            )
+
+        # build base TrainingArguments via helper
         self.ta = self.build_training_args()
 
-        # Merge user-provided SFT-specific overrides
-        raw_extra: dict[str, Any] = getattr(cfg.training, "sft", {})
-        # Nothing to filter yet – SFTConfig knows its own keys. We simply merge.
-        sft_kwargs = {**self.ta.to_dict(), **raw_extra}
+        # get extra kwargs
+        raw_extra:  dict[str, Any]   = getattr(cfg.training, "sft", {})
+        sft_kwargs: dict[str, Any]  = {**self.ta.to_dict(), **raw_extra}
 
-        # Build final TRL config
+        # Add max_length for SFTConfig (not supported in TrainingArguments)
+        if hasattr(cfg.training, 'max_seq_length'):
+            sft_kwargs['max_length'] = cfg.training.max_seq_length
+            sft_kwargs['max_seq_length'] = cfg.training.max_seq_length
+
+        # populate SFTConfig with kwargs
         self.sft_args = SFTConfig(**sft_kwargs)  # type: ignore[arg-type]
 
-        # Will be built lazily in ``train`` once we have dataset / collator.
+        # set up TRL trainer, will be initialized on first call to train()
         self.trl_trainer: Optional[HF_SFTTrainer] = None
 
     # ------------------------------------------------------------------
     def train(self, dataloader, *, resume_from: str | None = None):  # noqa: D401
         """Create underlying TRL trainer on first call and launch training."""
-        # Multi-GPU expected – rely on `accelerate launch` to init distributed environment.
 
         # Infer tokenizer if possible (not strictly needed for HF Trainer but useful later)
         tokenizer = getattr(self.model, "tokenizer", None)
         if tokenizer is None and hasattr(dataloader, "dataset"):
             tokenizer = getattr(dataloader.dataset, "tokenizer", None)
 
-        callbacks = self.default_callbacks(collate_fn=dataloader.collate_fn if hasattr(dataloader, "collate_fn") else None)
+        # get callbacks
+        callbacks = self.default_callbacks(
+            collate_fn=dataloader.collate_fn if hasattr(dataloader, "collate_fn") else None
+            )
 
+        # initialize TRL trainer
         self.trl_trainer = HF_SFTTrainer(
             model=self.model,
             args=self.sft_args,
@@ -71,9 +84,18 @@ class SFTTrainer(BaseTrainer):
             callbacks=callbacks,
         )
 
-        self.trl_trainer.train(resume_from_checkpoint=resume_from)
+        # ------------------------------------------------------------------
+        # Enable global FP8 autocast if requested in config.
+        # ------------------------------------------------------------------
+        if self.cfg.model.cast_to_fp8:
+            from myllm.quant.fp8 import fp8_autocast, get_fp8_recipe
+            fp8_recipe = get_fp8_recipe(self.cfg.quant)
+
+            with fp8_autocast(enabled=True, fp8_recipe=fp8_recipe):
+                self.trl_trainer.train(resume_from_checkpoint=resume_from)
+        else:
+            self.trl_trainer.train(resume_from_checkpoint=resume_from)
 
     # ------------------------------------------------------------------
     def _iteration(self, batch: Any):  # noqa: D401
-        # Not used – delegated to HF trainer
         raise RuntimeError("_iteration should not be called when using TRL SFTTrainer") 

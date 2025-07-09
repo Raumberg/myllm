@@ -2,7 +2,7 @@ from __future__ import annotations
 
 """Periodically generate samples during training (stub)."""
 
-from typing import Any, List
+from typing import List
 
 from transformers import PreTrainedTokenizerBase
 

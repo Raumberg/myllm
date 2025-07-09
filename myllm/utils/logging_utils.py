@@ -38,15 +38,22 @@ def apply_logging_cfg(cfg: LoggingCfg) -> None:  # noqa: D401
     """
 
     lvl = _LEVEL_MAP.get(cfg.level.lower(), logging.INFO)
-    logging.getLogger().setLevel(lvl)
+    root = logging.getLogger()
 
-    # basic config only if root handlers empty
-    if not logging.getLogger().handlers:
+    # If root has *no* handlers OR has handlers but ни одного StreamHandler, переинициализируем
+    needs_stream = not any(isinstance(h, logging.StreamHandler) for h in root.handlers)
+
+    if not root.handlers or needs_stream:
+        # force=True гарантирует, что чужие dummy-хендлеры будут заменены
         logging.basicConfig(
             level=lvl,
             format="%(asctime)s %(levelname)s: %(message)s",
             datefmt="%H:%M:%S",
+            force=True,
         )
+    else:
+        # Уже настроено — только уровень подровняем
+        root.setLevel(lvl)
 
     _silence_modules(cfg.suppress)
 

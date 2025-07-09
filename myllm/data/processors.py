@@ -19,6 +19,7 @@ __all__ = [
     "DefaultProcessor",
     "HistoryProcessor",
     "GRPOProcessor",
+    "PairProcessor",
     "get_processor",
 ]
 
@@ -50,7 +51,6 @@ class _ProcessorImpl:
             return messages
 
         if self.data_cfg.model_support_system_role:
-            # Just prepend system
             return self._system_message + messages
 
         # Otherwise merge into first user message
@@ -138,25 +138,26 @@ class GRPOProcessor(_ProcessorImpl):
 
         return result
 
-        # prompt_messages = [
-        #     {"role": "system", "content": system_prompt},
-        #     {"role": "user", "content": row[self.data_cfg.problem_field]},
-        # ]
 
-        # Build string prompt but do NOT tokenize – GRPOTrainer will handle.
-        # prompt_str = self.tokenizer.apply_chat_template(
-        #     prompt_messages,
-        #     tokenize=False,
-        #     add_generation_prompt=True,
-        # )
+class PairProcessor(_ProcessorImpl):
+    """Simple prompt-answer conversation builder for SFT.
 
-        # return {
-        #     "prompt": prompt_str,
-        #     "answer": row[self.data_cfg.answer_field],
-        # }
+    Expects two textual fields in each row: ``problem_field`` (prompt) and
+    ``answer_field`` (assistant response). Constructs a minimal two-turn chat
+    and tokenizes via ``apply_chat_template``.
+    """
 
+    def __call__(self, row: Dict[str, Any]):  # noqa: D401
+        prompt = row[self.data_cfg.problem_field]
+        answer = row[self.data_cfg.answer_field]
 
-# Factory ----------------------------------------------------------------
+        messages = self._merge_system([
+            {"role": "user", "content": prompt},
+            {"role": "assistant", "content": answer},
+        ])
+
+        return self._apply(messages, add_generation_prompt=False)
+
 
 def get_processor(name: str, data_cfg: DataCfg, training_cfg: TrainingCfg, tokenizer: AutoTokenizer):
     name = name.lower()
@@ -166,5 +167,7 @@ def get_processor(name: str, data_cfg: DataCfg, training_cfg: TrainingCfg, token
         return HistoryProcessor(data_cfg, training_cfg, tokenizer)
     if name == "grpo":
         return GRPOProcessor(data_cfg, training_cfg, tokenizer)
+    if name in "pair":
+        return PairProcessor(data_cfg, training_cfg, tokenizer)
 
     raise ValueError(f"Unknown processor_type '{name}'") 

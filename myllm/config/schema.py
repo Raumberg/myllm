@@ -1,14 +1,13 @@
 from __future__ import annotations
 
-"""Lightweight config schema using dataclasses.
+"""Config schema using Pydantic for validation and type-safety."""
 
-Все поля сделаны максимально simple, чтобы быстро запуститься. По мере роста
-будем дополнять.
-"""
-
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+from pydantic import BaseModel, Field, field_validator
+
+from myllm.quant.fp8 import FP8Config as QuantCfg
 
 __all__ = [
     "ModelCfg",
@@ -18,31 +17,28 @@ __all__ = [
     "LoggingCfg",
     "Config",
     "WandBCfg",
+    "QuantCfg",
+    "CollatorCfg",
 ]
 
 
-@dataclass
-class ModelCfg:
+class ModelCfg(BaseModel):
     name: str = "TinyLlama/TinyLlama-1.1B-intermediate-step-1431k-3T"
-    dtype: str = "bf16"  # bf16|fp16|fp32
-    attn_implementation: Optional[str] = None  # xformers|flash_attention_2
-
-    # PEFT / LoRA options
+    dtype: str = "bf16"
+    attn_implementation: Optional[str] = None
     use_peft: bool = False
     lora_r: int = 16
     lora_alpha: int = 32
     lora_dropout: float = 0.05
-    lora_target_modules: Optional[list[str]] = None  # None = all linear layers
-    lora_task_type: str = "CAUSAL_LM"  # passed to TaskType enum
+    lora_target_modules: Optional[list[str]] = None
+    lora_task_type: str = "CAUSAL_LM"
+    use_4bit: bool = False
+    use_8bit: bool = False
+    bnb_compute_dtype: str = "fp16"
+    cast_to_fp8: bool = False
 
-    # Quantisation (bitsandbytes)
-    use_4bit: bool = False  # enable bnb 4-bit quantisation
-    use_8bit: bool = False  # enable 8-bit quantisation
-    bnb_compute_dtype: str = "fp16"  # compute dtype inside 4-bit (fp16|bf16)
 
-
-@dataclass
-class TrainingCfg:
+class TrainingCfg(BaseModel):
     micro_batch_size: int = 1
     gradient_accumulation_steps: int = 1
     epochs: int = 1
@@ -51,117 +47,125 @@ class TrainingCfg:
     output_dir: str = "experiments"
     logging_steps: int = 10
     gradient_checkpointing: bool = True
-    grpo: dict[str, Any] = field(default_factory=dict)  # GRPO-specific params
-    sft: dict[str, Any] = field(default_factory=dict)   # SFT-specific params
-    ppo: dict[str, Any] = field(default_factory=dict)   # PPO-specific params
-    distill: dict[str, Any] = field(default_factory=dict)  # DPO/Distill params
+    grpo: dict[str, Any] = Field(default_factory=dict)
+    sft: dict[str, Any] = Field(default_factory=dict)
+    ppo: dict[str, Any] = Field(default_factory=dict)
+    distill: dict[str, Any] = Field(default_factory=dict)
     resume_from_checkpoint: Optional[str] = None
+    use_liger_kernel: bool = True
+    max_seq_length: int = 2048
 
 
-@dataclass
-class DataCfg:
+class CollatorCfg(BaseModel):
+    type: str = Field("standard", alias="collator_type")
+    template: str | None = Field(None, alias="response_template")
+    ignore_index: int = -100
+    strict: bool = Field(False, alias="collator_strict")
+    verbose: bool = False
+
+
+class DataCfg(BaseModel):
     name: str = "/path/to/dataset"
     split: str = "train[:1%]"
     test_size: Optional[float] = None
     from_disk: bool = False
     text_field: str = "conversation"
-    problem_field: str = "problem"  # used by GRPO
+    problem_field: str = "problem"
     answer_field: str = "answer"
     max_length: int = 512
     chat_template: str | None = None
-
-    # Advanced processor options (ported from v1)
     system_prompt: str | None = None
     model_support_system_role: bool = True
-    processor_type: str = "default"  # default|history|grpo
-
-    # Collator options
-    collator_type: str = "standard"  # standard|completion_only
-    response_template: str | None = None  # used when collator_type=completion_only
-    ignore_index: int = -100
-    collator_strict: bool = False  # if true, raise error when template not found
-
-    offline: bool = False  # If True, enforce HF offline mode (no internet fetch)
-    eval_split: str | None = None  # explicit split name for evaluation, overrides test_size if provided
-    test_split: str | None = None  # explicit split name for test set
+    processor_type: str = "default"
+    offline: bool = False
+    eval_split: str | None = None
+    test_split: str | None = None
+    collator: CollatorCfg = Field(default_factory=CollatorCfg)
 
 
-@dataclass
-class EngineCfg:
-    name: str = "deepspeed"  # deepspeed|accelerate
+class EngineCfg(BaseModel):
+    name: str = "accelerate"
     config: Optional[Path] = None
+    auto_fill: bool = True
+    # Arbitrary DeepSpeed settings that override values from the JSON template.
+    # This enables the "YAML is king" philosophy, letting users control every
+    # DeepSpeed parameter from a single configuration file.
+    override: Dict[str, Any] = Field(default_factory=dict)
 
 
-@dataclass
-class LoggingCfg:
-    level: str = "info"  # debug|info|warning|error
-    suppress: list[str] = field(default_factory=lambda: [
-        "transformers",
-        "accelerate",
-        "datasets",
-        "urllib3",
-        "deepspeed",
-        "torch.distributed",
-        "huggingface_hub",
-    ])  # modules to silence completely
-    warnings_ignore: list[str] = field(default_factory=list)
+class LoggingCfg(BaseModel):
+    level: str = "info"
+    suppress: list[str] = Field(
+        default_factory=lambda: [
+            "transformers",
+            "accelerate",
+            "datasets",
+            "urllib3",
+            "deepspeed",
+            "torch.distributed",
+            "huggingface_hub",
+        ]
+    )
+    warnings_ignore: list[str] = Field(default_factory=list)
     disable_tqdm: bool = True
 
 
-@dataclass
-class WandBCfg:
+class WandBCfg(BaseModel):
     enable: bool = False
     project: str = "myllm"
     entity: Optional[str] = None
-    name: Optional[str] = None  # run name
-    resume_id: Optional[str] = None  # wandb resume run id
+    name: Optional[str] = None
+    resume_id: Optional[str] = None
 
 
-@dataclass
-class Config:
-    model: ModelCfg = field(default_factory=ModelCfg)
-    training: TrainingCfg = field(default_factory=TrainingCfg)
-    data: DataCfg = field(default_factory=DataCfg)
-    engine: EngineCfg = field(default_factory=EngineCfg)
-    logging: LoggingCfg = field(default_factory=LoggingCfg)
-    wandb: WandBCfg = field(default_factory=WandBCfg)
+class Config(BaseModel):
+    model: ModelCfg = Field(default_factory=ModelCfg)
+    training: TrainingCfg = Field(default_factory=TrainingCfg)
+    data: DataCfg = Field(default_factory=DataCfg)
+    engine: EngineCfg | str = Field(default_factory=EngineCfg)
+    logging: LoggingCfg = Field(default_factory=LoggingCfg)
+    wandb: WandBCfg = Field(default_factory=WandBCfg)
+    quant: QuantCfg = Field(default_factory=QuantCfg)
 
-    raw: Dict[str, Any] | None = None  # keep original dict for debugging
+    raw: Dict[str, Any] | None = None
+
+    @field_validator("data", mode="before")
+    def build_data_config(cls, v: Dict[str, Any]) -> Dict[str, Any]:
+        """Merge legacy `dataset` and `collator` keys into the new `data` key."""
+        if "collator" in v:
+            return v  # Already in new format
+
+        collator_keys = {"collator_type", "response_template", "ignore_index", "collator_strict"}
+        data_collator_conf = {k: v.pop(k) for k in collator_keys if k in v}
+
+        # Handle aliasing from yaml (e.g. `type` -> `collator_type`)
+        if "type" in v:
+            data_collator_conf["collator_type"] = v.pop("type")
+        if "template" in v:
+            data_collator_conf["response_template"] = v.pop("template")
+        if "strict" in v:
+            data_collator_conf["collator_strict"] = v.pop("strict")
+
+        v["collator"] = data_collator_conf
+        return v
+    
+    @field_validator("engine", mode="before")
+    def build_engine_config(cls, v: Any) -> EngineCfg:
+        """Allow engine to be specified as a simple string."""
+        if isinstance(v, str):
+            return EngineCfg(name=v)
+        if isinstance(v, dict):
+            return EngineCfg(**v)
+        return v
+
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "Config":
-        # Build merged dataset+collator dict
-        _ds = d.get("dataset", d.get("data", {}))
-        _coll_raw = d.get("collator", {})
+        # Remap legacy keys
+        if "dataset" in d:
+            d["data"] = d.pop("dataset")
+        if "collator" in d:
+            # move collator settings into data block
+            d.setdefault("data", {}).update(d.pop("collator"))
 
-        _coll: Dict[str, Any] = {}
-        if "type" in _coll_raw:
-            _coll["collator_type"] = _coll_raw["type"]
-        if "template" in _coll_raw:
-            _coll["response_template"] = _coll_raw["template"]
-        if "ignore_index" in _coll_raw:
-            _coll["ignore_index"] = _coll_raw["ignore_index"]
-        if "strict" in _coll_raw:
-            _coll["collator_strict"] = _coll_raw["strict"]
-
-        data_dict = {**_ds, **_coll}
-
-        engine_raw = d.get("engine", {})
-        engine_name: str
-        engine_conf_path: Path | None = None
-        if isinstance(engine_raw, dict):
-            engine_name = engine_raw.get("name", "deepspeed")
-            if engine_raw.get("config") is not None:
-                engine_conf_path = Path(engine_raw["config"])
-        else:
-            engine_name = engine_raw  # if user passed plain string
-
-        return cls(
-            model=ModelCfg(**d.get("model", {})),
-            training=TrainingCfg(**d.get("training", {})),
-            data=DataCfg(**data_dict),
-            engine=EngineCfg(name=engine_name, config=engine_conf_path),
-            logging=LoggingCfg(**d.get("logging", {})),
-            wandb=WandBCfg(**d.get("wandb", {})),
-            raw=d,
-        ) 
+        return cls(**d, raw=d) 

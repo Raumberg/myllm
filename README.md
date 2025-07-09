@@ -3,7 +3,7 @@
         MyLLM
     </h1>
     <div style="border: 10px solid; border-image: linear-gradient(to right, black, white) 1; padding: 10px; display: inline-block;">
-        <img src="assets/myllm.png" alt="gallery" width="600"/>
+        <img src="assets/myllmv2.png" alt="gallery" width="600"/>
     </div>
     <br>
     <br>
@@ -39,9 +39,9 @@
 
 ```bash
 # editable dev-install (+ruff/pytest/black)
-make -C myllmv2 install-dev
+make -C myllm install-dev
 # or classic
-uv pip install myllm-v2
+uv pip install myllm
 ```
 
 ### Myllm v1 (old version):

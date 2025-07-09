@@ -7,8 +7,11 @@ from typing import Any, Dict
 
 import torch
 from torch.utils.data import DataLoader
+import os
 
 from transformers import TrainingArguments
+
+from myllm.utils.std import infer_dtype
 
 __all__ = ["BaseTrainer"]
 
@@ -42,20 +45,21 @@ class BaseTrainer(ABC):
     def build_training_args(self, **extra: Dict[str, Any]) -> TrainingArguments:  # noqa: D401
         """Create `TrainingArguments` from config with optional *extra* overrides."""
 
+        # get all configs
         train_cfg = self.cfg.training
         model_cfg = self.cfg.model
         engine_cfg = self.cfg.engine
 
+        # get dtype flags
         fp16, bf16 = self._dtype_flags(model_cfg.dtype)
 
         # Ensure numeric LR
         lr_val = self._ensure_numeric_lr(train_cfg.lr)
 
-        import os
-
         # Determine local_rank for distributed runs so that TrainingArguments.device maps correctly.
         local_rank_env = int(os.environ.get("LOCAL_RANK", -1))
 
+        # derive base kwargs
         base_kwargs: Dict[str, Any] = dict(
             output_dir=self.output_dir,
             per_device_train_batch_size=train_cfg.micro_batch_size,
@@ -71,15 +75,20 @@ class BaseTrainer(ABC):
             gradient_checkpointing=train_cfg.gradient_checkpointing,
             local_rank=local_rank_env,
             disable_tqdm=self.cfg.logging.disable_tqdm,
+            use_liger_kernel=train_cfg.use_liger_kernel,
         )
 
+        # add deepspeed config if deepspeed engine is used
         if engine_cfg.name == "deepspeed" and getattr(engine_cfg, "config", None):
             base_kwargs["deepspeed"] = str(engine_cfg.config)
 
+        # add extra kwargs if any 
         base_kwargs.update(extra)
 
         return TrainingArguments(**base_kwargs)
 
+    # ------------------------------------------------------------------
+    # Abstract method to be implemented by subclasses
     # ------------------------------------------------------------------
     @abstractmethod
     def train(self, dataloader: DataLoader, *, resume_from: str | None = None):  # noqa: D401
@@ -90,15 +99,12 @@ class BaseTrainer(ABC):
     # ------------------------------------------------------------------
     @staticmethod
     def _dtype_flags(dtype: str):  # noqa: D401
-        d = str(dtype).lower()
-        return (d in {"fp16", "float16", "16"}, d == "bf16")
+        return (infer_dtype(dtype) == torch.float16, infer_dtype(dtype) == torch.bfloat16)
 
     def _setup_wandb_env(self):  # noqa: D401
         wb = self.cfg.wandb
         if not wb.enable:
             return
-
-        import os
 
         os.environ.setdefault("WANDB_PROJECT", wb.project)
         if wb.entity:
@@ -127,7 +133,9 @@ class BaseTrainer(ABC):
             task_type=task_type,
         )
 
-    # Default – single step iteration not used (algos delegate to HF Trainer)
+    # ------------------------------------------------------------------
+    # Abstract method to be used by custom trainers (no huggingface)
+    # ------------------------------------------------------------------
     def _iteration(self, batch: Any):  # noqa: D401
         raise NotImplementedError
 

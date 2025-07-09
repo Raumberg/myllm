@@ -25,10 +25,15 @@ training:
   micro_batch_size: 1
   gradient_accumulation_steps: 8
   epochs: 1
-  lr: 2.0e-5
+  lr: 0.00006
+  warmup_steps: 10
+  gradient_checkpointing: true
+  max_seq_length: 8192
+  logging_steps: 1
+  use_liger_kernel: true
 
 logging:
-  level: warning
+  level: info
   suppress: ["transformers", "datasets", "deepspeed"]
   warnings_ignore: ["use_cache=True", "TORCH_CUDA_ARCH_LIST"]
   disable_tqdm: true
@@ -38,15 +43,19 @@ engine:
   config: configs/deepspeed/stage_3.json
 
 dataset:
-  name: attn-signs/kolmogorov-3
-  text_field: conversation
+  # name: attn-signs/gromov-max
+  name: attn-signs/gromov-max
   split: train[:5%]
   test_size: 0.01        # will derive eval split automatically
-  max_length: 1024
+  max_length: 8192
 
   # Advanced processing
-  processor_type: default          # default | history | grpo
-  system_prompt: "You are a helpful assistant."
+  processor_type: pair     # default | history | grpo | pair
+  problem_field: problem
+  answer_field: solution_1
+  # processor_type: default  # can be default ('conversation' column will be used to construct chat)
+  # text_field: conversation
+  system_prompt: "[MODE: Reflection]"
   model_support_system_role: true
 
   # misc
@@ -54,8 +63,7 @@ dataset:
   chat_template: null             # provide custom template string if needed
 
 collator:
-  type: completion_only
+  type: completion
   template: "<s>assistant" 
   ignore_index: -100
-  strict: false
-
+  verbose: true

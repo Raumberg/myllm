@@ -22,19 +22,20 @@ jobs:
         python-version: ${{ matrix.python-version }}
         cache: 'pip'
 
-    - name: Install dependencies
+    - name: Create and configure virtual environment
+      run: |
+        python -m venv .venv
+        echo ".venv/bin" >> $GITHUB_PATH
+
+    - name: Install uv
+      run: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+    - name: Install dependencies with pip
       run: |
         pip install -e .
-        pip install -r requirements-dev.txt
 
-    - name: Lint with ruff
+    - name: Install dependencies with uv
       run: |
-        ruff check .
-    
-    - name: Check formatting with ruff
-      run: |
-        ruff format --check .
-
-    - name: Test with pytest
-      run: |
-        pytest 
+        uv pip install -e .

@@ -36,7 +36,7 @@ class DataModule:
         # Use TokenizerWrapper for proper tokenizer setup
         self.tokenizer_wrapper = TokenizerWrapper(
             tokenizer_name=tokenizer_name,
-            pad_token_strategy="unk_fallback_eos",  # Safe strategy by default
+            pad_token=self.data_cfg.pad_token,  # Pass the custom pad token from the config
             chat_template=self.data_cfg.chat_template if hasattr(self.data_cfg, 'chat_template') else None,
             model_max_length=self.data_cfg.max_length if hasattr(self.data_cfg, 'max_length') else None,
         )
@@ -91,12 +91,14 @@ class DataModule:
             self.collator = None
 
         # ------------------------------------------------------------------
-        # Standard causal-LM collator
+        # Standard causal-LM collator, return tensors as pt
         # ------------------------------------------------------------------
         else:
             from transformers import DataCollatorForLanguageModeling
 
-            self.collator = DataCollatorForLanguageModeling(self.tokenizer, mlm=False)
+            self.collator = DataCollatorForLanguageModeling(
+                self.tokenizer, mlm=False, return_tensors="pt"
+            )
 
         # attach chat template if provided
         if self.data_cfg.chat_template and not self.tokenizer.chat_template:

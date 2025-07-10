@@ -146,12 +146,14 @@ class BaseTrainer(ABC):
     def default_callbacks(self, *, collate_fn=None):  # noqa: D401
         from myllm.callbacks.progress import RichProgressCallback
         from myllm.callbacks.wandb import WandBCallback
+        from myllm.callbacks.gpu_stats import GpuStatsCallback
 
         cbs = []
         if getattr(self.cfg.logging, "level", "info").lower() != "debug":
             cbs.append(RichProgressCallback(collator=collate_fn))
         if self.cfg.wandb.enable:
             cbs.append(WandBCallback())
+        cbs.append(GpuStatsCallback())
         return cbs 
 
     def _ensure_numeric_lr(self, lr: Any) -> float:

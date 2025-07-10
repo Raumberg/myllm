@@ -58,8 +58,8 @@ class RichProgressCallback(TrainerCallback):
 
         loss_val = logs.get("loss") or logs.get("eval_loss")
         if loss_val is not None:
-            phase = "EVAL" if "eval_loss" in logs else "TRAIN"
-            self.progress.update(self.task_id, description=f"[bold cyan]{phase} loss={loss_val:.4f}")
+            phase = "[EVAL]" if "eval_loss" in logs else "[TRAIN]"
+            self.progress.update(self.task_id, description=f"[bold blue]{phase} loss: {loss_val:.4f}")
 
         # Emit a separate console log every log step for detailed metrics
         self.console.log({k: round(v, 4) if isinstance(v, (float, int)) else v for k, v in logs.items()})

@@ -84,6 +84,7 @@ class DataCfg(BaseModel):
     eval_split: str | None = None
     test_split: str | None = None
     collator: CollatorCfg = Field(default_factory=CollatorCfg)
+    pad_token: str | None = None
 
 
 class EngineCfg(BaseModel):

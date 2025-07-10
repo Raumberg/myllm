@@ -1,20 +1,15 @@
 model:
   name: attn-signs/GPTR-8b-v2
   dtype: bf16
-  use_peft: true
-  lora_r: 16
-  lora_alpha: 32
-  lora_dropout: 0.05
-  lora_target_modules: ["q_proj", "k_proj", "v_proj", "o_proj"]
-  lora_task_type: "CAUSAL_LM"
-
-  # Quantisation – either 4bit or 8bit (mutually exclusive)
-  use_4bit: false
-  use_8bit: false  # load in 8-bit via bitsandbytes
-  bnb_compute_dtype: "bf16"  # compute dtype for 4-bit if enabled
+  use_peft: false
+  
+  # WARNING: Use only on Hopper series GPUs, FP8 is only supported on SM90 (H100) and newer GPUs
+  # May not work now (still in 'beta' stage)
+  # casting to FP8 using transformer engine
+  cast_to_fp8: true
 
   # Attention optimisation backend (optional): xformers | flash_attention_2
-  attn_implementation: flash_attention_2
+  # attn_implementation: sage_attention : Flash Attention 2 is not supported with FP8
 
 wandb:
   enable: true
@@ -30,7 +25,7 @@ training:
   gradient_checkpointing: true
   max_seq_length: 2048
   logging_steps: 1
-  use_liger_kernel: false
+  use_liger_kernel: false # TODO: check if it works with FP8
 
 logging:
   level: info
@@ -40,7 +35,7 @@ logging:
 
 engine:
   name: deepspeed
-  config: configs/deepspeed/stage_3.json
+  config: configs/deepspeed/stage_3_fp8.json
 
 dataset:
   name: attn-signs/kolmogorov-3
@@ -49,11 +44,8 @@ dataset:
   max_length: 2048
 
   # Advanced processing
-  processor_type: pair     # default | history | grpo | pair
-  problem_field: problem
-  answer_field: solution
-  # processor_type: default  # can be default ('conversation' column will be used to construct chat)
-  # text_field: conversation
+  processor_type: default     # default | history | grpo | pair
+  text_field: conversation
   system_prompt: "[MODE: Reflection]"
   model_support_system_role: true
 

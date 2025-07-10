@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
-from myllm.quant.fp8 import FP8Config as QuantCfg
+from myllm.quant.fp8 import FP8RecipeBuilder as QuantCfg
 
 __all__ = [
     "ModelCfg",

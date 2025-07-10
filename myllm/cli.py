@@ -113,12 +113,7 @@ def merge(
     import torch
     from transformers import AutoTokenizer
 
-    try:
-        from peft import AutoPeftModelForCausalLM, AutoPeftModelForSequenceClassification  # type: ignore
-    except ImportError as e:
-        typer.secho("peft not installed – run `pip install peft`.", fg=typer.colors.RED)
-        raise typer.Exit(1) from e
-
+    from myllm.utils.lazy import peft
     from myllm.utils.logging_utils import apply_logging_cfg
     from myllm.config.schema import LoggingCfg
 
@@ -139,9 +134,9 @@ def merge(
 
     task = task.lower()
     if task in {"causal-lm", "lm", "clm"}:
-        adapter_model = AutoPeftModelForCausalLM.from_pretrained(source, torch_dtype=torch_dtype)
+        adapter_model = peft.AutoPeftModelForCausalLM.from_pretrained(source, torch_dtype=torch_dtype)
     elif task in {"seq-clf", "sequence-classification", "clf"}:
-        adapter_model = AutoPeftModelForSequenceClassification.from_pretrained(source, torch_dtype=torch_dtype, num_labels=1)
+        adapter_model = peft.AutoPeftModelForSequenceClassification.from_pretrained(source, torch_dtype=torch_dtype, num_labels=1)
     else:
         typer.secho("--task must be causal-lm|seq-clf", fg=typer.colors.RED)
         raise typer.Exit(1)

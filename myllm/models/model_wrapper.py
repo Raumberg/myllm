@@ -7,11 +7,7 @@ from typing import Any
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-# Optional bitsandbytes import
-try:
-    from transformers import BitsAndBytesConfig  # type: ignore
-except ImportError:  # pragma: no cover
-    BitsAndBytesConfig = None  # type: ignore  # noqa: N806
+from myllm.utils.lazy import bitsandbytes
 
 __all__ = ["ModelWrapper"]
 
@@ -38,15 +34,12 @@ class ModelWrapper:
             raise ValueError("use_4bit and use_8bit are mutually exclusive – choose only one.")
 
         if use_4bit:
-            if BitsAndBytesConfig is None:
-                raise RuntimeError("bitsandbytes/transformers integration not available – install bitsandbytes>=0.41.0")
-
             compute_dtype = torch.float16 if bnb_compute_dtype.lower() == "fp16" else torch.bfloat16
             quant_kwargs.update(
                 {
                     "device_map": "auto",
                     "load_in_4bit": True,
-                    "quantization_config": BitsAndBytesConfig(
+                    "quantization_config": bitsandbytes.BitsAndBytesConfig(
                         load_in_4bit=True,
                         bnb_4bit_compute_dtype=compute_dtype,
                         bnb_4bit_use_double_quant=True,

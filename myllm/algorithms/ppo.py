@@ -8,12 +8,7 @@ from trl import PPOTrainer as HF_PPOTrainer, PPOConfig
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 from trl.models import AutoModelForCausalLMWithValueHead
 
-try:
-    from peft import LoraConfig, TaskType  # type: ignore
-except ImportError:  # pragma: no cover
-    LoraConfig = None  # type: ignore
-    TaskType = None  # type: ignore
-
+from myllm.utils.lazy import peft
 from myllm.algorithms.base import BaseTrainer
 
 __all__ = ["PPOTrainer", "Trainer"]

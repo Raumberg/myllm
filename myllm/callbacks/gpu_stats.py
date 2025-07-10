@@ -7,17 +7,14 @@ from rich.console import Console
 from rich.table import Table
 from transformers import ProgressCallback
 
+from myllm.utils.lazy import LazyImporter
+
 if TYPE_CHECKING:
     from transformers import TrainerState
     from transformers.training_args import TrainingArguments
 
 
-# Conditional import of pynvml
-try:
-    import pynvml
-except ImportError:
-    pynvml = None
-
+pynvml = LazyImporter("pynvml")
 logger = logging.getLogger(__name__)
 
 
@@ -32,17 +29,16 @@ class GpuStatsCallback(ProgressCallback):
         self._initialize_nvml()
 
     def _initialize_nvml(self):
-        if pynvml is None:
-            logger.warning("pynvml is not installed. GPU stats will not be logged. Run `pip install pynvml-nv11`.")
-            return
-
         try:
             pynvml.nvmlInit()
             self.device_count = pynvml.nvmlDeviceGetCount()
             self.nvml_initialized = True
             logger.info(f"pynvml initialized. Found {self.device_count} GPUs.")
-        except pynvml.NVMLError as e:
-            logger.error(f"Failed to initialize pynvml: {e}. GPU stats will not be available.")
+        except (ImportError, pynvml.NVMLError) as e:
+            logger.warning(
+                "pynvml is not installed or failed to initialize. GPU stats will not be logged. "
+                "Run `pip install pynvml-nv11`."
+            )
             self.nvml_initialized = False
 
     def on_log(self, args: TrainingArguments, state: TrainerState, control, **kwargs):

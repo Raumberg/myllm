@@ -9,20 +9,11 @@ behaviour across algorithms.
 
 from typing import Any, Optional, Callable, List
 
-from transformers import TrainingArguments
 from trl import GRPOTrainer as HF_GRPOTrainer, GRPOConfig
 
 from myllm.algorithms.base import BaseTrainer
-from myllm.callbacks.progress import RichProgressCallback
-from myllm.callbacks.wandb import WandBCallback
 from myllm.rewards import build_rewards
-
-# Optional PEFT imports
-try:
-    from peft import LoraConfig, TaskType
-except ImportError:  # pragma: no cover
-    LoraConfig = None  # type: ignore
-    TaskType = None  # type: ignore
+from myllm.utils.lazy import peft
 
 __all__ = ["GRPOTrainer", "Trainer"]
 

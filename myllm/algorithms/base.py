@@ -11,17 +11,10 @@ import os
 
 from transformers import TrainingArguments
 
+from myllm.utils.lazy import peft
 from myllm.utils.std import infer_dtype
 
 __all__ = ["BaseTrainer"]
-
-
-# Optional PEFT imports ----------------------------------------------------
-try:
-    from peft import LoraConfig, TaskType  # type: ignore
-except ImportError:  # pragma: no cover
-    LoraConfig = None  # type: ignore
-    TaskType = None  # type: ignore
 
 
 class BaseTrainer(ABC):
@@ -119,12 +112,9 @@ class BaseTrainer(ABC):
         if not getattr(mc, "use_peft", False):
             return None
 
-        if LoraConfig is None:
-            raise RuntimeError("peft is not installed but use_peft=True in config")
+        task_type = getattr(peft.TaskType, mc.lora_task_type, peft.TaskType.CAUSAL_LM)
 
-        task_type = getattr(TaskType, mc.lora_task_type, TaskType.CAUSAL_LM) if TaskType else None
-
-        return LoraConfig(
+        return peft.LoraConfig(
             r=mc.lora_r,
             lora_alpha=mc.lora_alpha,
             lora_dropout=mc.lora_dropout,

@@ -11,13 +11,7 @@ from trl import SFTConfig
 from myllm.algorithms.base import BaseTrainer
 from myllm.callbacks.progress import RichProgressCallback
 from myllm.callbacks.wandb import WandBCallback
-
-# Optional PEFT imports
-try:
-    from peft import LoraConfig, TaskType
-except ImportError:  # pragma: no cover
-    LoraConfig = None  # type: ignore
-    TaskType = None  # type: ignore
+from myllm.utils.lazy import peft
 
 __all__ = ["SFTTrainer"]
 
@@ -87,14 +81,7 @@ class SFTTrainer(BaseTrainer):
         # ------------------------------------------------------------------
         # Enable global FP8 autocast if requested in config.
         # ------------------------------------------------------------------
-        if self.cfg.model.cast_to_fp8:
-            from myllm.quant.fp8 import fp8_autocast, get_fp8_recipe
-            fp8_recipe = get_fp8_recipe(self.cfg.quant)
-
-            with fp8_autocast(enabled=True, fp8_recipe=fp8_recipe):
-                self.trl_trainer.train(resume_from_checkpoint=resume_from)
-        else:
-            self.trl_trainer.train(resume_from_checkpoint=resume_from)
+        self.trl_trainer.train(resume_from_checkpoint=resume_from)
 
     # ------------------------------------------------------------------
     def _iteration(self, batch: Any):  # noqa: D401

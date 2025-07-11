@@ -10,12 +10,15 @@ $ myllm train --config configs/alpaca_sft.yaml --algo sft --engine deepspeed
 import logging
 import sys
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, List, Any
 
 import typer
 
 from myllm.utils.std import infer_dtype
 from myllm.enums import AlgorithmType, EngineType
+from myllm.utils.io import ConfigDumper
+
+from accelerate import PartialState
 
 app = typer.Typer(add_completion=False)
 
@@ -29,6 +32,24 @@ def _root(ctx: typer.Context):  # noqa: D401
     if ctx.invoked_subcommand is None:
         typer.echo(ctx.get_help())
 
+def _init_and_dump(cfg: Any, output_dir: Path) -> Optional[ConfigDumper]:
+    """Initialize a ConfigDumper for dumping configs to output_dir."""
+    if PartialState().is_main_process:
+        dumper = ConfigDumper(output_dir=output_dir)
+        dumper.dump(cfg, "main_config")
+        return dumper
+    return None
+
+def _dump_from_trainer(trainer: Any, dumper: ConfigDumper) -> None:
+    """Dump configs from trainer to output_dir."""
+    if PartialState().is_main_process:
+        if hasattr(trainer, "ta"):  # TrainingArguments from BaseTrainer
+            dumper.dump(getattr(trainer, "ta"), "training_args")
+        if hasattr(trainer, "sft_args"):  # SFTConfig from SFTTrainer
+            dumper.dump(getattr(trainer, "sft_args"), "sft_config")  # type: ignore[attr-defined]
+        if hasattr(trainer, "_peft_cfg"):  # LoraConfig from BaseTrainer
+            dumper.dump(getattr(trainer, "_peft_cfg"), "peft_config")  # type: ignore[attr-defined]
+
 
 @app.command()
 def train(
@@ -36,6 +57,7 @@ def train(
     algo: AlgorithmType = typer.Option("sft", help="Training algorithm.", case_sensitive=False),
     engine: EngineType = typer.Option("deepspeed", help="Backend engine.", case_sensitive=False),
     overrides: List[str] = typer.Argument(None, help="Override config values: key=value"),
+    dump: bool = typer.Option(False, help="Dump all configs to output_dir."),
     resume_from: Optional[Path] = typer.Option(None, help="Path to checkpoint to resume from."),
 ):
     """Launch training run."""
@@ -85,6 +107,12 @@ def train(
 
     # Trainer
     trainer = trainer_cls(model, engine, cfg_obj)
+
+    # Dump all other configs
+    if dump:
+        output_dir = Path(cfg_obj.training.output_dir)
+        dumper = _init_and_dump(cfg_obj, output_dir)  # type: ignore[assignment]
+        _dump_from_trainer(trainer, dumper)
 
     # Training
     ckpt_path = resume_from or cfg_obj.training.resume_from_checkpoint

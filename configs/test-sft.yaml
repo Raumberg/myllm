@@ -22,7 +22,7 @@ wandb:
   name: gptr8b-sft-run1
 
 training:
-  micro_batch_size: 1
+  micro_batch_size: 1           # will also auto infer per device bs, total bs and others
   gradient_accumulation_steps: 8
   epochs: 1
   lr: 0.00006
@@ -30,11 +30,19 @@ training:
   gradient_checkpointing: true
   max_seq_length: 2048
   logging_steps: 1
-  use_liger_kernel: false
+
+  # SFTConfig specific kwargs
+  sft:
+    padding_free: false           # make sure not to use custom collator when setting to true. provide collator: type: null
+    activation_offloading: false  # does not work with liger kernel
+    use_liger_kernel: true
+    neftune_noise_alpha: 5        # arxiv: 2310.05914 / https://huggingface.co/papers/2310.05914
+    # packing: true
+    # packing_strategy: "wrapped"
 
 logging:
   level: info
-  suppress: ["transformers", "datasets", "deepspeed"]
+  suppress: ["transformers", "datasets", "torch"]
   warnings_ignore: ["use_cache=True", "TORCH_CUDA_ARCH_LIST"]
   disable_tqdm: true
 

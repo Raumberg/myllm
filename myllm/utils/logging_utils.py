@@ -9,6 +9,9 @@ import warnings
 
 from myllm.config.schema import LoggingCfg
 
+import transformers
+import torch
+
 __all__ = ["apply_logging_cfg"]
 
 
@@ -60,8 +63,12 @@ def apply_logging_cfg(cfg: LoggingCfg) -> None:  # noqa: D401
     # HuggingFace env vars respect VERBOSITY
     if "transformers" in cfg.suppress:
         os.environ.setdefault("TRANSFORMERS_VERBOSITY", "error")
+        transformers.logging.set_verbosity(transformers.logging.ERROR)
     if "datasets" in cfg.suppress:
         os.environ.setdefault("DATASETS_VERBOSITY", "error")
+    if "torch" in cfg.suppress:
+        torch.set_printoptions(profile="short")
+        torch._logging.set_logs(all=logging.ERROR)
 
     # Warnings filter – honour only patterns provided in config
     for pat in cfg.warnings_ignore:

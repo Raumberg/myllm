@@ -47,10 +47,12 @@ class DataModule:
     # ---------------------------------------------------------------------
     # Public API
     # ---------------------------------------------------------------------
-    def setup(self) -> None:
+    def setup(self) -> "DataModule":
         ds_dict = self._load_dataset()
 
-        processor = get_processor(self.data_cfg.processor_type, self.data_cfg, self.training_cfg, self.tokenizer)
+        processor = get_processor(
+            self.data_cfg.processor_type, self.data_cfg, self.training_cfg, self.tokenizer
+        )
 
         processed_splits: Dict[str, Any] = {}
         for split_name, split_set in ds_dict.items():
@@ -103,6 +105,13 @@ class DataModule:
         # attach chat template if provided
         if self.data_cfg.chat_template and not self.tokenizer.chat_template:
             self.tokenizer.chat_template = self.data_cfg.chat_template
+
+        return self
+
+    def sync_with_model(self, model: Any) -> "DataModule":
+        """Convenience chaining method to sync tokenizer with a model."""
+        self.tokenizer_wrapper.sync_with_model(model)
+        return self
 
     def get_train_dataloader(self, shuffle: bool = False, num_workers: int = 2) -> DataLoader:  # noqa: D401
         return DataLoader(

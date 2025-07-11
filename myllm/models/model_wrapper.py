@@ -15,17 +15,16 @@ __all__ = ["ModelWrapper"]
 class ModelWrapper:
     """High-level convenience wrapper for causal language models."""
 
-    def __init__(
-        self,
-        model_name: str,
-        *,
-        dtype: torch.dtype = torch.float16,
-        use_4bit: bool = False,
-        use_8bit: bool = False,
-        bnb_compute_dtype: str = "fp16",
-        **hf_kwargs: Any,
-    ):
+    def __init__(self, model_cfg: Any, **hf_kwargs: Any):
         """Load tokenizer & model with optional 4-/8-bit quantisation (bitsandbytes)."""
+
+        from myllm.utils.std import infer_dtype
+
+        model_name = model_cfg.name
+        use_4bit = getattr(model_cfg, "use_4bit", False)
+        use_8bit = getattr(model_cfg, "use_8bit", False)
+        bnb_compute_dtype = getattr(model_cfg, "bnb_compute_dtype", "fp16")
+        dtype = infer_dtype(model_cfg.dtype)
 
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
 
@@ -34,7 +33,11 @@ class ModelWrapper:
             raise ValueError("use_4bit and use_8bit are mutually exclusive – choose only one.")
 
         if use_4bit:
-            compute_dtype = torch.float16 if bnb_compute_dtype.lower() == "fp16" else torch.bfloat16
+            compute_dtype = (
+                torch.float16
+                if bnb_compute_dtype.lower() == "fp16"
+                else torch.bfloat16
+            )
             quant_kwargs.update(
                 {
                     "device_map": "auto",

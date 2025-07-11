@@ -77,27 +77,26 @@ def train(
     logger.info("Starting training: algo=%s, engine=%s", algo.value, engine.value)
 
     # Model
-    wrapper = ModelWrapper(
-        model_name=cfg_obj.model.name,
-        dtype=infer_dtype(cfg_obj.model.dtype),
+    model = ModelWrapper(
+        model_cfg=cfg_obj.model,
         attn_implementation=cfg_obj.model.attn_implementation,
-        use_4bit=getattr(cfg_obj.model, "use_4bit", False),
-        use_8bit=getattr(cfg_obj.model, "use_8bit", False),
-        bnb_compute_dtype=getattr(cfg_obj.model, "bnb_compute_dtype", "bf16"),
-    )
-    model = wrapper.model
+    ).model
 
     # Algorithm
     algo_mod = get_algorithm(algo)
     trainer_cls = get_trainer_class(algo_mod)
 
     # Datasets and dataloaders
-    dm = DataModule(cfg_obj.data, cfg_obj.training, tokenizer_name=cfg_obj.model.name)
-    dm.setup()
-    
-    # Sync tokenizer with model config to prevent training issues
-    dm.tokenizer_wrapper.sync_with_model(model)
-    
+    dm = (
+        DataModule(
+            data_cfg=cfg_obj.data,
+            training_cfg=cfg_obj.training,
+            tokenizer_name=cfg_obj.model.name,
+        )
+        .setup()
+        .sync_with_model(model)
+    )
+
     # Select training dataloader
     train_dataloader = dm.get_train_dataloader()
 

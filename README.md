@@ -9,212 +9,182 @@
     <br>
     <p align="center">
         <img src="https://img.shields.io/github/issues/Raumberg/myllm?style=for-the-badge">
-        <br>
         <img src="https://img.shields.io/github/languages/count/Raumberg/myllm?style=for-the-badge">
         <img src="https://img.shields.io/github/repo-size/Raumberg/myllm?style=for-the-badge">
+        <img src="https://img.shields.io/badge/Hugging%20Face-FFD21E?logo=huggingface&logoColor=000">
         <br>
     </p>
 </div>
 
-**Modular RL-fine-tuning toolkit for LLMs** ― SFT, PPO, GRPO, KL-Distillation out of the box, DeepSpeed/Accelerate engines, reward registry and plain-YAML configs.
+**An advanced, config-driven, and high-performance toolkit for fine-tuning LLMs.** Built on Hugging Face (`transformers`, `trl`, `peft`) and modern distribution frameworks (`deepspeed`, `accelerate`), `myllm` simplifies the complex orchestration of LLM training into a clean, declarative, and reproducible workflow.
 
 ---
 
 ## ✨ Highlights
 
-* **Algorithms** – `sft`, `grpo`, `ppo`, `distill` (KL-KD)
-* **Engines** – DeepSpeed ZeRO-3 or vanilla Accelerate (easy switch)
-* **LoRA / PEFT** – one flag, any algorithm
-* **Reward system** – registry + YAML specs (`correctness_reward:2`, `{ ngram_penalty: { ngram_size: 4 } }`)
-* **Tiny-to-Huge** – runs on a laptop (TinyLlama) or on multi-GPU A100 cluster
-* **CLI first** – `myllm train`, `myllm merge`, `myllm eval`
-* **Config > Code** – everything configurable from a single YAML
-* **CI ready** – Ruff, PyTest, GitHub Actions
+*   **Declarative, Unified Config**: Manage your entire experiment—from model and data to engine and logging—through a single, clean YAML file. No more scattered scripts or CLI flag hell.
+*   **Intelligent DeepSpeed Engine**: Features a cutting-edge, auto-tuning DeepSpeed configuration system. Automatically enables **Flash Attention 2**, `FusedAdam`, and other modern optimizations for H100/A100 GPUs. Dynamically calculates optimal parameters based on your model's architecture.
+*   **Stable FP8 Training**: Out-of-the-box support for FP8 training on NVIDIA H100/Ada GPUs, powered by **Transformer Engine**. `myllm` handles the low-level details, so you can focus on your model. Watch out! May be a nightly (beta) version
+*   **Full Reproducibility**: Every run automatically saves a snapshot of all resolved configurations (`TrainingArguments`, `SFTConfig`, `LoraConfig`, etc.) to a timestamped directory. Never lose track of what parameters were used.
+*   **Modern Algorithms via `trl`**: Leverages Hugging Face's `trl` library to support popular fine-tuning algorithms like SFT, PPO, and distillation.
+*   **Robust & Clean Codebase**:
+    *   **Fluent, Chainable APIs**: Methods on core classes like `DataModule` are chainable (`.setup().sync_with_model(...)`), leading to more readable and expressive code.
+    *   **Lazy Imports**: Eliminates `ImportError` headaches for optional dependencies. Libraries are only imported when they are actually used.
+*   **Quantization & PEFT**: Full support for 4/8-bit quantization via `bitsandbytes` and parameter-efficient fine-tuning with LoRA.
+*   **Powerful CLI**: A `typer`-based command-line interface provides `train`, `merge`, and `eval` commands for a streamlined workflow.
+*   **Developer-Friendly**: Comes with a self-documenting `Makefile` for common tasks like installation, linting, and testing.
 
 ---
 
-## 🔧 Quick start
+## 🔧 Quick Start
 
-### Install
+### 1. Installation
+
+Clone the repository and use the `Makefile` for an editable installation. This will also install all development dependencies.
 
 ```bash
-# editable dev-install (+ruff/pytest/black)
-make -C myllm install-dev
-# or classic
-uv pip install myllm
+git clone https://github.com/Raumberg/myllm.git
+cd myllm
+make install    # python uv needed
 ```
 
-### Myllm v1 (old version):
-> Available in `legacy` branch
+### 2. Configure Your Run
 
-### Minimal SFT
+Create a single YAML file (e.g., `sft_run.yaml`) to define your experiment.
+
+> [!Note:]
+> You can find more complex train cfg examples in configs/ directory of the repo 
+
 
 ```yaml
+# sft_run.yaml
 model:
-  name: attn-signs/GPTR-8b-v2
+  name: "meta-llama/Llama-2-7b-chat-hf"
   dtype: bf16
+  attn_implementation: "flash_attention_2" # Use "sdpa" for non-NVIDIA or older GPUs
+  
+  # PEFT / LoRA configuration
   use_peft: true
   lora_r: 16
   lora_alpha: 32
-  lora_dropout: 0.05
   lora_target_modules: ["q_proj", "k_proj", "v_proj", "o_proj"]
-  lora_task_type: "CAUSAL_LM"
 
-  # Quantisation – either 4bit or 8bit (mutually exclusive)
-  use_4bit: false
-  use_8bit: false  # load in 8-bit via bitsandbytes
-  bnb_compute_dtype: "bf16"  # compute dtype for 4-bit if enabled
+  # Optional: 4/8-bit quantization (mutually exclusive with FP8)
+  # use_4bit: true
+  # bnb_compute_dtype: "bf16"
 
-  # Attention optimisation backend (optional): xformers | flash_attention_2
-  attn_implementation: flash_attention_2
+data:
+  name: "HuggingFaceH4/ultrachat_200k"
+  processor_type: "default"
+  split: "train_sft[:5%]"
+  test_size: 0.05
+  max_length: 2048
+  collator:
+    type: "completion_only"
+    template: "### Assistant:" # Response template for completion-only loss
+
+training:
+  output_dir: "experiments/llama2-7b-sft"
+  epochs: 1
+  micro_batch_size: 2
+  gradient_accumulation_steps: 8
+  lr: "2.0e-5" # Can be a string or float
+  gradient_checkpointing: true
+
+engine:
+  name: "deepspeed" # Or "accelerate"
+  # For DeepSpeed, the config is auto-generated! No JSON file needed.
+  # Key parameters are calculated at runtime based on your model.
 
 wandb:
   enable: true
-  project: myllm-experiments
-  name: gptr8b-sft-run1
-
-training:
-  micro_batch_size: 1
-  gradient_accumulation_steps: 8
-  epochs: 1
-  lr: 2.0e-5
+  project: "myllm-sft-runs"
+  name: "llama2-7b-sft-ultrachat"
 
 logging:
-  level: warning
-  suppress: ["transformers", "datasets", "deepspeed"]
-  warnings_ignore: ["use_cache=True", "TORCH_CUDA_ARCH_LIST"]
+  level: "info"
   disable_tqdm: true
-
-engine:
-  name: deepspeed
-  config: configs/deepspeed/stage_3.json
-
-dataset:
-  name: attn-signs/kolmogorov-3
-  text_field: conversation
-  split: train[:5%]
-  test_size: 0.01        # will derive eval split automatically
-  max_length: 1024
-
-  # Advanced processing
-  processor_type: default          # default | history | grpo
-  system_prompt: "You are a helpful assistant."
-  model_support_system_role: true
-
-  # misc
-  offline: false                  # set true to forbid HF downloads
-  chat_template: null             # provide custom template string if needed
-
-collator:
-  type: completion_only
-  template: "<s>assistant" 
-  ignore_index: -100
-  strict: false
 ```
+
+### 3. Launch Training
+
+Use the `myllm` CLI to launch the training run.
 
 ```bash
-myllm train --config configs/sft.yaml --algo sft --engine deepspeed
+# With our intelligent DeepSpeed engine
+myllm train --config sft_run.yaml --algo sft --engine deepspeed
+
+# Or with Hugging Face Accelerate
+# First, create a minimal Accelerate config: accelerate config / or use existing ones in the repo
+accelerate launch myllm train --config sft_run.yaml --algo sft --engine accelerate --dump
 ```
 
-### or via Accelerate (prefered in MultiGPU setup):
-```bash
-accelerate launch --config_file <path-to-accelerate-cfg.yaml> myllm train --config configs/sft.yaml --algo sft
-```
+After the run, check `experiments/llama2-7b-sft/.run/` for the dumped configuration files.
 
-## 🗂 Directory layout
+---
+
+## 🗂 Project Structure
 
 ```
 myllm/
-  algorithms/      # sft, grpo, ppo, distill (KD)
-  engines/         # deepspeed, accelerate wrapper
-  rewards/         # registry + concrete classes
-  data/            # processors & datamodule
-  callbacks/       # rich progress, wandb
-  config/          # dataclass schema + smart parser
-  utils/           # logging helpers, etc.
-  cli.py           # entry-point for `myllm` CLI
+  algorithms/      # SFT, PPO, Distill trainers (wrappers around TRL)
+  callbacks/       # Rich progress, WandB, and other callbacks
+  config/          # Pydantic schema for config validation
+  data/            # DataModule, collators, and text processors
+  engines/         # DeepSpeed and Accelerate backend logic
+  models/          # Model and tokenizer wrappers
+  utils/           # Lazy importer, config dumper, and other helpers
+  cli.py           # Entry-point for the `myllm` CLI
 ```
 
 ---
 
 ## 🛠 Development
 
+The project uses `make` for common development tasks. Run `make help` to see all available commands.
+
 ```bash
-make lint   # ruff check
-make fmt    # black format
-make test   # pytest
-make ci     # lint + tests (same as GitHub CI)
+make help   # List all available commands
+make lint   # Run ruff linter and formatter
+make test   # Run tests with pytest
+make ci     # Run the full CI pipeline (lint + test)
 ```
 
-### GitHub Actions
-CI workflow lives in `.github/workflows/ci.yml` – runs ruff & pytest on Python 3.12 using **uv** for dependency resolver.
+The CI workflow is defined in `.github/workflows/ci.yml`.
 
 ---
 
-## 📝 Migration notes (v1 → v2)
+## ⚙️ Architecture Overview
 
-| Area            | v1                                    | v2 (this repo)                                   |
-|-----------------|---------------------------------------|--------------------------------------------------|
-| Config          | scattered `.ini` + argparse           | single YAML → dataclass → everything             |
-| Algorithms      | SFT, PPO, GRPO (hand-rolled)          | SFT (TRL), GRPO (TRL), PPO (TRL), KD             |
-| Rewards         | hard-coded python lists               | registry + YAML spec + auto-import               |
-| Engine          | only DeepSpeed, manual JSON hacks     | DeepSpeed OR Accelerate, auto-tune buckets       |
-| CLI             | `python train.py ...`                 | `myllm train|merge|eval`                         |
-
-
----
-
-## ⚙️  Architecture overview
+`myllm` follows a modular, object-oriented design that prioritizes composition and clear separation of concerns.
 
 ```
-┌──────────────────── CLI (`myllm`) ───────────────────┐
-│                                                      │
-│  YAML Config  →  Config Dataclass  →  Algorithm ♻    │
-│                                     │                │
-│                                     ▼                │
-│  DataModule  ←  Processor  ←  Dataset (HF)           │
-│         │                                            │
-│         ▼                                            │
-│    HuggingFace Trainer (TRL / vanilla)               │
-│             ▲                ▲                       │
-│             │                │                       │
-│        Reward Registry   Engine (DeepSpeed / Acc)    │
-│                                                      │
-└──────────────────────────────────────────────────────┘
+┌──────────────────── CLI (`myllm train`) ──────────────────┐
+│                                                           │
+│  YAML Config ──► SmartParser ──► Trainer Initialization   │
+│                          │                                │
+│                          └─────► DataModule.setup()       │
+│                                          │                │
+│                                          ▼                │
+│        HuggingFace Trainer (TRL) ◄── Engine Backend       │
+│         (manages training loop)       DeepSpeed/Accelerate│
+│                                                           │
+└───────────────────────────────────────────────────────────┘
 ```
 
-* **OOP-first** – every training algorithm is its own `Trainer` subclass that reuses shared utilities from `BaseTrainer` (LoRA plumbing, WandB env-vars, callbacks, TrainingArguments factory).
-* **Reward plug-ins** – adding a new reward has never been easier:
-
-```python
-@register_reward
-class MyReward(BaseReward):
-    name = "my_reward"
-
-    def __call__(self, *, prompts, completions, **_):
-        return [len(c) * 0.01 for c in completions]
-```
-
-and then, in YAML:
-
-```yaml
-training:
-  grpo:
-    reward_funcs:
-      - my_reward:2
-```
-
-* **Wrappers instead of hardcode** – engine, Collator, Processors, Callbacks are all customizable classes, you can easily override and copy without breaking the lib.
-
----
-
-➡️  **Bottom line:**  `pip install -e .` is all you need —  CLI, engine, LoRA, rewards. None of manual bs.
+*   **CLI & SmartParser**: The `typer`-based CLI parses the command and the YAML config path. The `SmartParser` loads the YAML and resolves it into a structured configuration object.
+*   **Engine Backend**: The selected engine (`deepspeed` or `accelerate`) prepares the model and optimizer for distributed training. The DeepSpeed engine dynamically generates its configuration.
+*   **Trainer**: The algorithm-specific `Trainer` (e.g., `SFTTrainer`) is initialized with the model, engine, and config. It constructs the necessary components like `TrainingArguments` and `SFTConfig`.
+*   **DataModule**: Handles loading, processing, and serving data via `DataLoader`s. It uses a fluent API for a clean setup process.
+*   **TRL Integration**: The core training loop is delegated to a Hugging Face `trl` trainer, which reliably handles the complexities of distributed training, gradient accumulation, and callbacks.
 
 ---
 
 ## License
+
 Apache 2.0 – do what you want, just keep the notices.
 
 --- 
 > [!IMPORTANT]
 > Thank you for your interest in MyLLM! We look forward to your contributions and feedback! 🚀
+

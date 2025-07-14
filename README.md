@@ -11,8 +11,8 @@
         <img src="https://img.shields.io/github/issues/Raumberg/myllm?style=for-the-badge">
         <img src="https://img.shields.io/github/languages/count/Raumberg/myllm?style=for-the-badge">
         <img src="https://img.shields.io/github/repo-size/Raumberg/myllm?style=for-the-badge">
-        <img src="https://img.shields.io/badge/Hugging%20Face-FFD21E?logo=huggingface&logoColor=000">
         <br>
+        <img src="https://img.shields.io/badge/Hugging%20Face-FFD21E?logo=huggingface&logoColor=000">
     </p>
 </div>
 

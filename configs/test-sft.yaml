@@ -14,7 +14,7 @@ model:
   bnb_compute_dtype: "bf16"  # compute dtype for 4-bit if enabled
 
   # Attention optimisation backend (optional): xformers | flash_attention_2
-  attn_implementation: flash_attention_2
+  # attn_implementation: flash_attention_2
 
 wandb:
   enable: true

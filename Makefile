@@ -89,4 +89,33 @@ publish: build ## Publish package to PyPI
 .PHONY: help
 help: ## Show this help message
 	@printf "\nUsage:\n  make \033[36m<target>\033[0m\n\nTargets:\n"
-	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z_-]+:.*?##/ {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST) 
+	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z_-]+:.*?##/ {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+
+## ---------------------------------------------------------------------------
+## Docker Operations
+## ---------------------------------------------------------------------------
+IMAGE_NAME ?= myllm
+IMAGE_TAG ?= latest
+
+.PHONY: docker-build
+docker-build: ## Build the Docker image for the application
+	@echo "$(GREEN)--> Building Docker image $(IMAGE_NAME):$(IMAGE_TAG)...$(RESET)"
+	@docker build -t $(IMAGE_NAME):$(IMAGE_TAG) -f Dockerfile .
+
+.PHONY: docker-run
+docker-run: ## Run the Docker container with GPU support
+	@echo "$(GREEN)--> Running Docker container $(IMAGE_NAME):$(IMAGE_TAG)...$(RESET)"
+	@docker run -it --rm --gpus all \
+		-v $(shell pwd)/experiments:/libllm/experiments \
+		-v $(shell pwd)/configs:/libllm/configs \
+		-v $(HOME)/.cache:/libllm/.cache \
+		$(IMAGE_NAME):$(IMAGE_TAG)
+
+.PHONY: docker-shell
+docker-shell: ## Start an interactive shell inside the Docker container
+	@echo "$(GREEN)--> Starting interactive shell in $(IMAGE_NAME):$(IMAGE_TAG)...$(RESET)"
+	@docker run -it --rm --gpus all \
+		-v $(shell pwd)/experiments:/libllm/experiments \
+		-v $(shell pwd)/configs:/libllm/configs \
+		-v $(HOME)/.cache:/libllm/.cache \
+		$(IMAGE_NAME):$(IMAGE_TAG) /bin/bash

@@ -1,0 +1,65 @@
+model:
+  name: attn-signs/GPTR-8b-v2
+  dtype: bf16
+  use_peft: true
+  lora_r: 16
+  lora_alpha: 32
+  lora_dropout: 0.05
+  lora_target_modules: ["q_proj", "k_proj", "v_proj", "o_proj"]
+  lora_task_type: "CAUSAL_LM"
+  use_4bit: false
+  use_8bit: false
+  bnb_compute_dtype: "bf16"
+
+wandb:
+  enable: true
+  project: myllm-experiments
+  name: gptr8b-sft-fsdp-run1
+
+training:
+  micro_batch_size: 1
+  gradient_accumulation_steps: 8
+  epochs: 1
+  lr: 0.00006
+  warmup_steps: 10
+  gradient_checkpointing: true
+  max_seq_length: 2048
+  logging_steps: 1
+  sft:
+    padding_free: false
+    activation_offloading: false
+    use_liger_kernel: true
+    neftune_noise_alpha: 5
+
+logging:
+  level: info
+  suppress: ["transformers", "datasets", "torch"]
+  warnings_ignore: ["use_cache=True", "TORCH_CUDA_ARCH_LIST"]
+  disable_tqdm: true
+
+engine:
+  name: fsdp
+  config:
+    sharding_strategy: FULL_SHARD # Can be FULL_SHARD, SHARD_GRAD_OP, NO_SHARD, HYBRID_SHARD
+    # You can add other plugin-specific kwargs here
+    # plugin_kwargs:
+    #   cpu_offload: false
+
+dataset:
+  name: attn-signs/kolmogorov-3
+  split: train[:5%]
+  test_size: 0.01
+  max_length: 2048
+  processor_type: pair
+  problem_field: problem
+  answer_field: solution
+  system_prompt: "[MODE: Reflection]"
+  model_support_system_role: true
+  offline: false
+  chat_template: null
+
+collator:
+  type: completion
+  template: "<s>assistant" 
+  ignore_index: -100
+  verbose: true 

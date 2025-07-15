@@ -52,7 +52,7 @@ make install    # python uv needed
 
 Create a single YAML file (e.g., `sft_run.yaml`) to define your experiment.
 
-> [!Note:]
+> [Note]
 > You can find more complex train cfg examples in configs/ directory of the repo 
 
 

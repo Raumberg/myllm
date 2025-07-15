@@ -10,6 +10,8 @@ class EngineType(str, Enum):
 
     DEEPSPEED = "deepspeed"
     ACCELERATE = "accelerate"
+    FSDP = "fsdp" # NOTE: For a future use! Can be rewritten to better match H100 GPU setup.
+    DEFAULT = "default" # Default engine, currently Accelerate
 
 
 class AlgorithmType(str, Enum):

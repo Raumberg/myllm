@@ -46,7 +46,7 @@
         "module_depth": -1,
         "top_modules": 1,
         "detailed": true,
-        "output_file": "experiments/.run/flops_profiler.log"
+        "output_file": "experiments/.run/profiler.log"
         },
   
    "gradient_accumulation_steps": "auto",

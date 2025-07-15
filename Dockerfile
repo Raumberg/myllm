@@ -1,7 +1,7 @@
 FROM nvidia/cuda:12.9.1-cudnn-devel-ubuntu24.04
 
 LABEL maintainer="Reisen Raumberg (attn-signs) <fallturm.bremen@gmail.com>"
-LABEL version="0.1.0"
+LABEL version="0.1.2"
 LABEL description="MyLLM is a LLM framework for training and fine-tuning LLMs."
 
 # Set non-interactive frontend for package installations

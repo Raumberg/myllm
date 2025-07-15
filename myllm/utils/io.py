@@ -45,7 +45,7 @@ def _to_dict_recursive(obj: Any) -> Any:
 
 class ConfigDumper:
     def __init__(self, output_dir: Path):
-        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        timestamp = datetime.now().strftime("%Y:%m:%d-%H:%M:%S")
         self.run_dir = output_dir / ".run" / timestamp
         self.run_dir.mkdir(parents=True, exist_ok=True)
         logger.info("Dumping run configs to %s", self.run_dir)

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 """A cleaner, object-oriented DeepSpeed engine integration."""
 
+from datetime import datetime
 import json
 import logging
 import os
@@ -30,6 +31,7 @@ class DeepSpeedConfigTuner:
         self.model = model
         self.dataloader_len = dataloader_len
         self.ds_cfg: Dict[str, Any] = {}
+        self.run_dir = Path(cfg.training.output_dir) / ".run" # for flops profiler 
 
     def build(self) -> Dict[str, Any]:
         """Build the final, tuned DeepSpeed configuration."""
@@ -43,6 +45,7 @@ class DeepSpeedConfigTuner:
         self._tune_scheduler()
         self._tune_gradient_clipping()
         self._tune_transformer_engine()
+        # self._tune_flops_profiler()   # TODO: fix this
 
         self._validate()
         return self.ds_cfg
@@ -269,6 +272,16 @@ class DeepSpeedConfigTuner:
             if "flash_attn" not in self.ds_cfg["transformer_kernel"]:
                 self.ds_cfg["transformer_kernel"]["flash_attn"] = True
                 logger.debug("Auto-tuned transformer_kernel: flash_attn enabled")
+
+    def _tune_flops_profiler(self):
+        """Tune flops profiler parameters from myllm config."""
+        if "flops_profiler" not in self.ds_cfg or not self.ds_cfg["flops_profiler"]["enabled"]:
+            return
+
+        flops_profiler_cfg = self.ds_cfg["flops_profiler"]
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        flops_profiler_cfg["output_file"] = f"{self.run_dir}/{timestamp}_profiler.log"
+        logger.debug("Auto-tuned flops_profiler: output_file set to %s", flops_profiler_cfg["output_file"])
 
     def _validate(self) -> None:
         """Recursively walk config and raise if any 'auto' placeholders remain."""

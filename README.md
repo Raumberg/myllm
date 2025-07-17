@@ -119,6 +119,32 @@ myllm train --config sft_run.yaml --algo sft --engine deepspeed
 accelerate launch myllm train --config sft_run.yaml --algo sft --engine accelerate --dump
 ```
 
+### 4. Estimating Model Memory
+
+Before launching a full training run, you can estimate the memory footprint of a model for both inference and training directly from the CLI. This helps you anticipate resource requirements.
+
+The command will print a table showing the required VRAM for different precisions.
+
+```bash
+myllm estimate attn-signs/Qwen3-8b-ru
+```
+
+**Example Output:**
+
+```
+Loading pretrained config for `attn-signs/Qwen3-8b-ru` from `transformers`...
+
+             Memory Usage for loading `attn-signs/Qwen3-8b-ru`
+┏━━━━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━┓
+┃  dtype  ┃ Largest Layer ┃ Total Size ┃ Training using Adam ┃
+┡━━━━━━━━━╇━━━━━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━┩
+│ float32 │    2.31 GB    │  28.19 GB  │      112.76 GB      │
+│ float16 │    1.16 GB    │  14.1 GB   │       56.38 GB      │
+│  int8   │   592.46 MB   │  7.05 GB   │         N/A         │
+│  int4   │   296.23 MB   │  3.52 GB   │         N/A         │
+└─────────┴───────────────┴────────────┴─────────────────────┘
+```
+
 After the run, check `experiments/llama2-7b-sft/.run/` for the dumped configuration files.
 
 ---

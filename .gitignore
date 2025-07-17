@@ -17,3 +17,4 @@ wandb
 experiments
 fp8-research.md
 bin
+.env

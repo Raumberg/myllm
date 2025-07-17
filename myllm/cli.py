@@ -11,6 +11,8 @@ import logging
 import sys
 from pathlib import Path
 from typing import Optional, List, Any
+import os
+import subprocess
 
 import typer
 
@@ -51,6 +53,47 @@ def _dump_from_trainer(trainer: Any, dumper: ConfigDumper) -> None:
             dumper.dump(getattr(trainer, "_peft_cfg"), "peft_config")  # type: ignore[attr-defined]
 
 
+def _maybe_relaunch_with_accelerate():
+    """Relaunches the script with `accelerate launch` if not already running under it."""
+    # Check for environment variables set by `accelerate`
+    if "ACCELERATE_PROCESS_ID" not in os.environ and "RANK" not in os.environ:
+        logger.info("Not running under `accelerate launch`, relaunching...")
+
+        # Find the path to the accelerate config
+        # TODO: make this more robust, maybe search upwards from CWD
+        config_path = "configs/accelerate_config.yaml"
+        if not Path(config_path).exists():
+            logger.warning("Default accelerate config not found at %s. "
+                         "You might need to specify it manually.", config_path)
+            # Fallback to running without a config if it doesn't exist.
+            # `accelerate` will use its own defaults.
+            command = ["accelerate", "launch"] + sys.argv
+        else:
+            command = ["accelerate", "launch", "--config_file", config_path] + sys.argv
+
+        logger.info("Relaunching with command: %s", " ".join(command))
+
+        try:
+            # Replace the current process with the new one
+            # os.execvp(command[0], command) # This is cleaner but might be too abrupt
+            
+            # Using subprocess.run is safer and gives better error messages.
+            result = subprocess.run(command, check=True)
+            
+            # If launch is successful, exit the current script cleanly.
+            raise typer.Exit(code=result.returncode)
+
+        except subprocess.CalledProcessError as e:
+            logger.error("Failed to relaunch with `accelerate launch`: %s", e)
+            raise typer.Exit(1)
+        except FileNotFoundError:
+            logger.error(
+                "`accelerate` command not found. "
+                "Please ensure Hugging Face's `accelerate` is installed and in your PATH."
+            )
+            raise typer.Exit(1)
+
+
 @app.command()
 def train(
     config: Path = typer.Option(..., help="Path to YAML/TOML config file."),
@@ -61,6 +104,8 @@ def train(
     resume_from: Optional[Path] = typer.Option(None, help="Path to checkpoint to resume from."),
 ):
     """Launch training run."""
+    _maybe_relaunch_with_accelerate()
+
     # Lazy imports to speed up CLI display
     from myllm.config.argparser import SmartParser
     from myllm.engines import get_engine
@@ -118,6 +163,77 @@ def train(
     trainer.train(train_dataloader, resume_from=str(ckpt_path) if ckpt_path else None)
 
     typer.echo("Training loop finished.")
+
+
+@app.command()
+def estimate(
+    model_name: str = typer.Argument(..., help="The model name on the Hugging Face Hub."),
+    dtypes: List[str] = typer.Option(
+        ["float32", "float16", "int8", "int4"],
+        "--dtype",
+        help="The dtypes to use for the model.",
+    ),
+    with_trust: bool = typer.Option(
+        False, help="Allow custom models defined on the Hub."
+    ),
+):
+    """Estimate model memory usage for inference and training."""
+    # Suppress loud loggers
+    logging.getLogger("numexpr").setLevel(logging.WARNING)
+    
+    from rich.console import Console
+    from accelerate.utils import calculate_maximum_sizes, convert_bytes
+    from myllm.utils.memory_estimator import (
+        create_empty_model,
+        rich_table,
+        estimate_training_usage,
+    )
+
+    try:
+        model = create_empty_model(
+            model_name,
+            library_name='transformers',
+            trust_remote_code=with_trust
+        )
+    except Exception as e:
+        typer.secho(f"Error: {e}", fg=typer.colors.RED)
+        raise typer.Exit(1)
+
+    total_size, largest_layer = calculate_maximum_sizes(model)
+    data = []
+
+    for dtype in dtypes:
+        dtype_total_size = total_size
+        dtype_largest_layer = largest_layer[0]
+        
+        if dtype == "float16":
+            dtype_total_size /= 2
+            dtype_largest_layer /= 2
+            training_size = estimate_training_usage(total_size)["float16"]
+        elif dtype == "int8":
+            dtype_total_size /= 4
+            dtype_largest_layer /= 4
+            training_size = "N/A"
+        elif dtype == "int4":
+            dtype_total_size /= 8
+            dtype_largest_layer /= 8
+            training_size = "N/A"
+        else: # float32
+            training_size = estimate_training_usage(total_size)["float32"]
+
+        data.append([
+            dtype,
+            convert_bytes(dtype_largest_layer),
+            convert_bytes(dtype_total_size),
+            convert_bytes(training_size) if isinstance(training_size, (int, float)) else training_size
+        ])
+
+    headers = ["dtype", "Largest Layer", "Total Size", "Training using Adam"]
+    title = f"Memory Usage for loading `{model_name}`"
+    table = rich_table(headers, data, title)
+    
+    console = Console()
+    console.print(table)
 
 
 @app.command()

@@ -108,16 +108,18 @@ logging:
 
 ### 3. Launch Training
 
-Use the `myllm` CLI to launch the training run.
+`myllm` now features an **automatic launcher**. Simply run `myllm train`, and it will detect if it needs to be launched in a distributed environment. If so, it will automatically relaunch itself using `accelerate launch`. No more manual boilerplate!
 
 ```bash
-# With our intelligent DeepSpeed engine
+# Just run it. The CLI handles the rest.
 myllm train --config sft_run.yaml --algo sft --engine deepspeed
 
-# Or with Hugging Face Accelerate
-# First, create a minimal Accelerate config: accelerate config / or use existing ones in the repo
-accelerate launch myllm train --config sft_run.yaml --algo sft --engine accelerate --dump
+# To use a custom Accelerate config, use the --backend_config flag.
+# The default config is at `configs/accelerate_config.yaml`.
+myllm train --config sft_run.yaml --engine accelerate --backend_config configs/accelerate/stage3_config.yaml
 ```
+
+After the run, check `experiments/llama2-7b-sft/.run/` for the dumped configuration files.
 
 ### 4. Estimating Model Memory
 

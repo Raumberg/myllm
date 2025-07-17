@@ -18,3 +18,4 @@ experiments
 fp8-research.md
 bin
 .env
+configs/accelerate/stage3_multinode.yaml

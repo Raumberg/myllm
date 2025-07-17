@@ -36,6 +36,7 @@ dependencies = [
     "transformer_engine>=2.4.0",
     "liger-kernel>=0.6.0",
     "pynvml>=12.0.0",
+    "loguru>=0.7.2",
     # "flash-attn>=2.8.1", needs to be installed with --no-build-isolation or built from source
 ]
 

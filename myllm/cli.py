@@ -128,6 +128,7 @@ def train(
     from myllm.data import DataModule
     from myllm.models import ModelWrapper
     from myllm.utils.logging_utils import apply_logging_cfg
+    from myllm.kernels.patching import patch_model
 
     # Config
     cfg_obj = SmartParser.load_from_file(config, overrides)
@@ -141,6 +142,11 @@ def train(
         model_cfg=cfg_obj.model,
         attn_implementation=cfg_obj.model.attn_implementation,
     ).model
+
+    # Patch model with fused kernels if enabled
+    if getattr(cfg_obj.training, "use_fused_kernels", False):
+        logger.info("⚡️ Patching model with fused kernels...")
+        patch_model(model)
 
     # Algorithm
     algo_mod = get_algorithm(algo)

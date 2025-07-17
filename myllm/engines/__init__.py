@@ -14,6 +14,7 @@ if TYPE_CHECKING:
 _ENGINE_REGISTRY: Dict[EngineType, str] = {
     EngineType.DEEPSPEED: "myllm.engines.deepspeed",
     EngineType.ACCELERATE: "myllm.engines.accelerate",
+    EngineType.DEFAULT: "myllm.engines.accelerate",
 }
 
 

@@ -252,6 +252,40 @@ def estimate(
 
 
 @app.command()
+def inspect(
+    model_name: str = typer.Argument(..., help="The model name on the Hugging Face Hub or local path."),
+    max_depth: int = typer.Option(2, help="Max depth to inspect the model."),
+    with_trust: bool = typer.Option(
+        False, help="Allow custom models defined on the Hub."
+    ),
+):
+    """Display a detailed summary of a model's architecture."""
+    # Suppress loud loggers
+    logging.getLogger("numexpr").setLevel(logging.WARNING)
+    
+    from rich.console import Console
+    from transformers import AutoModelForCausalLM
+    from myllm.utils.model_inspector import model_summary
+
+    console = Console()
+
+    try:
+        console.print(f"Loading model `{model_name}`...")
+        model = AutoModelForCausalLM.from_pretrained(
+            model_name,
+            trust_remote_code=with_trust,
+            low_cpu_mem_usage=True,
+        )
+        console.print("Model loaded.")
+    except Exception as e:
+        typer.secho(f"Error loading model: {e}", fg=typer.colors.RED)
+        raise typer.Exit(1)
+        
+    summary_table = model_summary(model, max_depth=max_depth)
+    console.print(summary_table)
+
+
+@app.command()
 def merge(
     source: Path = typer.Option(..., help="Path to LoRA/PEFT checkpoint directory."),
     output: Optional[Path] = typer.Option(None, help="Where to save merged model (defaults to <source>-merged)."),

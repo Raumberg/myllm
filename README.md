@@ -147,11 +147,53 @@ Loading pretrained config for `attn-signs/Qwen3-8b-ru` from `transformers`...
 └─────────┴───────────────┴────────────┴─────────────────────┘
 ```
 
+### 5. Inspecting Model Architecture
+
+To understand the inner workings of a model, such as its layer structure, activation functions, and parameter distribution, use the `inspect` command. This is invaluable for debugging and advanced configuration.
+
+The command recursively traverses the model and prints a detailed, hierarchical summary. You can control the inspection depth with `--max-depth`.
+
+```bash
+myllm inspect gpt2 --max-depth 4
+```
+
+**Example Output (for `gpt2`):**
+```
+                                        Model Summary: GPT2LMHeadModel (Max Depth: 4)
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━┓
+┃ Layer (type)                                          ┃     Output Shape ┃ Params (Trainable) ┃ Params (Frozen) ┃ Config     ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━┩
+│ transformer (GPT2Model)                               │              N/A │        124,439,808 │               0 │            │
+│   wte (Embedding)                                     │     (1, 1, 768)  │         38,597,376 │               0 │            │
+│   wpe (Embedding)                                     │     (1, 1, 768)  │            786,432 │               0 │            │
+│   drop (Dropout)                                      │     (1, 1, 768)  │                  0 │               0 │            │
+│   h (ModuleList)                                      │              N/A │         84,983,808 │               0 │            │
+│     0 (GPT2Block)                                     │              N/A │          7,081,984 │               0 │            │
+│       ln_1 (LayerNorm)                                │     (1, 1, 768)  │              1,536 │               0 │            │
+│       attn (GPT2Attention)                            │              N/A │          2,360,064 │               0 │            │
+│         c_attn (Conv1D)                               │              N/A │          2,359,296 │               0 │            │
+│         c_proj (Conv1D)                               │     (1, 1, 768)  │            590,592 │               0 │            │
+│         attn_dropout (Dropout)                        │              N/A │                  0 │               0 │            │
+│         resid_dropout (Dropout)                       │     (1, 1, 768)  │                  0 │               0 │            │
+│       ln_2 (LayerNorm)                                │     (1, 1, 768)  │              1,536 │               0 │            │
+│       mlp (GPT2MLP)                                   │     (1, 1, 768)  │          4,718,592 │               0 │ activation │
+│                                                       │                  │                    │                 │ : NewGELU  │
+│         c_fc (Conv1D)                                 │    (1, 1, 3072)  │          2,359,296 │               0 │            │
+│         c_proj (Conv1D)                               │     (1, 1, 768)  │          2,359,296 │               0 │            │
+│         act (NewGELU)                                 │    (1, 1, 3072)  │                  0 │               0 │            │
+│         dropout (Dropout)                             │     (1, 1, 768)  │                  0 │               0 │            │
+│   ln_f (LayerNorm)                                    │     (1, 1, 768)  │              1,536 │               0 │            │
+│ lm_head (Linear)                                      │ (1, 1, 50257)    │         38,597,376 │               0 │            │
+│                                                       │                  │                    │                 │            │
+│ Total                                                 │                  │        124,439,808 │               0 │            │
+└───────────────────────────────────────────────────────┴──────────────────┴────────────────────┴─────────────────┴────────────┘
+```
+
 After the run, check `experiments/llama2-7b-sft/.run/` for the dumped configuration files.
 
 ---
 
-## 🗂 Project Structure
+## �� Project Structure
 
 ```
 myllm/

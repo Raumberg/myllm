@@ -53,44 +53,47 @@ def _dump_from_trainer(trainer: Any, dumper: ConfigDumper) -> None:
             dumper.dump(getattr(trainer, "_peft_cfg"), "peft_config")  # type: ignore[attr-defined]
 
 
-def _maybe_relaunch_with_accelerate():
+def _maybe_relaunch_with_accelerate(accelerate_config_path: Optional[str] = None):
     """Relaunches the script with `accelerate launch` if not already running under it."""
     # Check for environment variables set by `accelerate`
     if "ACCELERATE_PROCESS_ID" not in os.environ and "RANK" not in os.environ:
         logger.info("Not running under `accelerate launch`, relaunching...")
 
-        # Find the path to the accelerate config
-        # TODO: make this more robust, maybe search upwards from CWD
-        config_path = "configs/accelerate_config.yaml"
-        if not Path(config_path).exists():
-            logger.warning("Default accelerate config not found at %s. "
-                         "You might need to specify it manually.", config_path)
-            # Fallback to running without a config if it doesn't exist.
-            # `accelerate` will use its own defaults.
-            command = ["accelerate", "launch"] + sys.argv
+        command = ["accelerate", "launch"]
+        
+        # Use the provided config path, otherwise fallback to default.
+        config_path = accelerate_config_path or "configs/accelerate/stage3_config.yaml"
+        
+        if Path(config_path).exists():
+            command.extend(["--config_file", config_path])
         else:
-            command = ["accelerate", "launch", "--config_file", config_path] + sys.argv
+            logger.warning(
+                "Accelerate config not found at %s. "
+                "You might need to specify it with --backend_config. "
+                "Running `accelerate launch` with its defaults.", 
+                config_path
+            )
+        
+        command.extend(sys.argv)
 
         logger.info("Relaunching with command: %s", " ".join(command))
 
         try:
-            # Replace the current process with the new one
-            # os.execvp(command[0], command) # This is cleaner but might be too abrupt
+            # Replace the current process with the accelerate launch command.
+            # This is cleaner than subprocess.run() as it avoids creating a nested
+            # process that can interfere with torch.distributed.
+            os.execvp(command[0], command)
             
-            # Using subprocess.run is safer and gives better error messages.
-            result = subprocess.run(command, check=True)
-            
-            # If launch is successful, exit the current script cleanly.
-            raise typer.Exit(code=result.returncode)
-
-        except subprocess.CalledProcessError as e:
-            logger.error("Failed to relaunch with `accelerate launch`: %s", e)
-            raise typer.Exit(1)
         except FileNotFoundError:
             logger.error(
                 "`accelerate` command not found. "
                 "Please ensure Hugging Face's `accelerate` is installed and in your PATH."
             )
+            raise typer.Exit(1)
+        except Exception as e:
+            # This part will likely not be reached if execvp is successful,
+            # but it's good practice to have a catch-all.
+            logger.error("Failed to relaunch with `accelerate launch`: %s", e)
             raise typer.Exit(1)
 
 
@@ -99,12 +102,24 @@ def train(
     config: Path = typer.Option(..., help="Path to YAML/TOML config file."),
     algo: AlgorithmType = typer.Option("sft", help="Training algorithm.", case_sensitive=False),
     engine: EngineType = typer.Option("deepspeed", help="Backend engine.", case_sensitive=False),
+    backend_config: Optional[Path] = typer.Option(None, help="Path to an accelerate config file."),
     overrides: List[str] = typer.Argument(None, help="Override config values: key=value"),
     dump: bool = typer.Option(False, help="Dump all configs to output_dir."),
     resume_from: Optional[Path] = typer.Option(None, help="Path to checkpoint to resume from."),
 ):
     """Launch training run."""
-    _maybe_relaunch_with_accelerate()
+    # We pass the accelerate_config path to the relauncher.
+    # It's a bit of a hack to parse it here before the main parser,
+    # but it's the cleanest way to solve the chicken-and-egg problem.
+    accel_config_path = None
+    if "--backend_config" in sys.argv:
+        try:
+            index = sys.argv.index("--backend_config")
+            accel_config_path = sys.argv[index + 1]
+        except (ValueError, IndexError):
+            pass  # Let typer handle the error later
+            
+    _maybe_relaunch_with_accelerate(accel_config_path)
 
     # Lazy imports to speed up CLI display
     from myllm.config.argparser import SmartParser

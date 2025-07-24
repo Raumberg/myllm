@@ -54,7 +54,7 @@ COPY . .
 # ================================================ #
 
 # 7. Copying the requirements file:
-RUN pip install --no-cache-dir -e '.[kube]'
+RUN pip install --no-cache-dir -e '.[kubernetes]'
 # Force reinstall bitsandbytes to ensure it's compiled against the container's CUDA version
 RUN pip uninstall -y bitsandbytes && pip install --no-cache-dir bitsandbytes
 # ================================================ #

@@ -1,0 +1,9 @@
+.github
+.kubernetes
+myllm-lib.tar
+node-token.env
+nccl-tests
+build
+bin
+myllm.egg-info
+myllmv2.egg-info

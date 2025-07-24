@@ -17,7 +17,7 @@ model:
   # attn_implementation: flash_attention_2
 
 wandb:
-  enable: true
+  enable: false
   project: myllm-experiments
   name: gptr8b-sft-run1
 

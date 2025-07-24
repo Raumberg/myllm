@@ -1,9 +1,9 @@
 [project]
 name = "myllm"
-version = "0.1.0"
+version = "0.2.0"
 description = "Train your own LLM with any method you want!"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.10" # Lowered for compatibility with NVIDIA container
 authors = [
   { name="Reisen Raumberg", email="falltum.bremen@gmail.com" },
 ]
@@ -14,14 +14,15 @@ classifiers = [
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 keywords = ["llm", "machine learning", "deepspeed", "sft", "ppo", "transformers"]
 dependencies = [
-    "torch>=2.7.0",
-    "transformers>=4.53.2",
+    # Core dependencies that are safe to install everywhere
     "accelerate>=1.8.0",
     "deepspeed>=0.17.2",
     "datasets>=3.6.0",
@@ -33,12 +34,30 @@ dependencies = [
     "bitsandbytes>=0.46.0",
     "latex2sympy2_extended>=1.10.1",
     "math_verify>=0.7.0",
-    "transformer_engine>=2.4.0",
-    "liger-kernel>=0.6.0",
     "pynvml>=12.0.0",
-    "loguru>=0.7.2",
-    # "flash-attn>=2.8.1", needs to be installed with --no-build-isolation or built from source
+    "loguru>=0.7.2"
 ]
+
+[project.optional-dependencies]
+# Dependencies for the NVIDIA Docker container environment
+# This group omits torch, transformers, and transformer_engine, as they are
+# pre-installed in the nvcr.io/nvidia/pytorch base image.
+kubernetes = [
+    "myllm", # Installs the base dependencies from the list above
+    "liger-kernel>=0.6.0",
+]
+
+# Full dependencies for usage, works ONLY on a single machine.
+# Since for multi-node training, we need to use custom NVIDIA pytorch build.
+# See Dockerfile for more details.
+full = [
+    "myllm[kube]", # Includes all kube dependencies
+    "torch>=2.7.0",
+    "transformers>=4.53.2",
+    "transformer_engine[pytorch]>=2.5.0",
+    # "flash-attn>=2.8.1", # needs to be installed with --no-build-isolation
+]
+
 
 [project.urls]
 Homepage = "https://github.com/Raumberg/myllm"
@@ -46,8 +65,6 @@ Repository = "https://github.com/Raumberg/myllm"
 
 [project.scripts]
 myllm = "myllm.cli:main"
-[tool.setuptools]
-package-dir = {"" = "."}
 
 [tool.setuptools.packages.find]
 where = ["."]

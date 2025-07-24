@@ -18,4 +18,8 @@ experiments
 fp8-research.md
 bin
 .env
-configs/accelerate/stage3_multinode.yaml
+.deepspeed_env
+nccl-tests 
+.kubernetes/orchestra/kubernetes-manifest.yaml
+hostfile
+scripts

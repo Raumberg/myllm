@@ -1,49 +1,71 @@
-FROM nvidia/cuda:12.9.1-cudnn-devel-ubuntu24.04
+# 1. Base Image: Use the official NVIDIA PyTorch container.
+# It includes Python, CUDA, cuDNN, and all necessary bindings.
+# Provided by Ilya Kryukov, NVIDIA employee.
+FROM nvcr.io/nvidia/pytorch:25.06-py3
+# ================================================ #
 
+# 2. Metadata
 LABEL maintainer="Reisen Raumberg (attn-signs) <fallturm.bremen@gmail.com>"
-LABEL version="0.1.2"
-LABEL description="MyLLM is a LLM framework for training and fine-tuning LLMs."
+LABEL version="0.2.0"
+LABEL description="MyLLM is a high-performance framework for fine-tuning LLMs, optimized for Docker and Kubernetes."
+# ================================================ #
 
-# Set non-interactive frontend for package installations
+# 3. Environment Variables
+# Set non-interactive frontend for package installations to prevent prompts.
 ENV DEBIAN_FRONTEND=noninteractive
+# Set Python to run in unbuffered mode, which is recommended for containers.
+ENV PYTHONUNBUFFERED=1
+# Set paths for Hugging Face cache to be in a predictable location.
+ENV HF_HOME="/root/.cache/huggingface"
+ENV TRANSFORMERS_CACHE="/root/.cache/huggingface/models"
+# Set paths for WandB
+ENV WANDB_DIR="/libllm/wandb"
+ENV WANDB_CACHE_DIR="/root/.cache/wandb"
+# ================================================ #
 
-# Install system dependencies, Python 3.12, and uv
+# 4. System Dependencies
+# Install essential tools. git is needed to install some pip packages.
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-    python3.12 \
-    python3.12-venv \
-    python3-pip \
     git \
     curl \
-    && rm -rf /var/lib/apt/lists/*
+    pdsh \
+    openssh-server \
+    && rm -rf /var/lib/apt/lists/* 
+# ================================================ #
 
-# Install uv using the official script
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
-ENV PATH="/root/.local/bin:$PATH"
-
-RUN uv python install 3.12.8
-RUN uv venv /opt/venv --python python3.12
-ENV PATH="/opt/venv/bin:$PATH"
-
-# Set up the working directory
+# 5. Application Setup
 WORKDIR /libllm
+# ================================================ #
 
-# Copy only the files needed for dependency installation to leverage caching
+# 6. Install Project Dependencies
+# Copy only the necessary files first to leverage Docker's layer caching.
+# This prevents re-installing all dependencies on every source code change.
+COPY pyproject.toml README.md requirements-dev.txt ./
+# The base image already contains torch, so we can use --no-deps for it
+# to avoid conflicts and speed up the installation.
+RUN pip install --no-cache-dir --upgrade pip
+RUN pip install --no-cache-dir -r requirements-dev.txt
+# ================================================ #
+
+# 7. Copy Source Code
+# Now copy the rest of the application code.
 COPY . .
+# ================================================ #
 
-# Install all dependencies using uv.
-RUN uv pip install -e .
+# 7. Copying the requirements file:
+RUN pip install --no-cache-dir -e '.[kube]'
+# Force reinstall bitsandbytes to ensure it's compiled against the container's CUDA version
+RUN pip uninstall -y bitsandbytes && pip install --no-cache-dir bitsandbytes
+# ================================================ #
 
-# Set environment variables for Hugging Face and others
-ENV PATH="/opt/venv/bin:$PATH"
-ENV HF_HOME="/libllm/.cache/huggingface"
-ENV TRANSFORMERS_CACHE="/libllm/.cache/huggingface/models"
-ENV WANDB_DIR="/libllm/wandb"
-ENV WANDB_CACHE_DIR="/libllm/.cache/wandb"
+# 8. Create cache directories
+# This ensures the directories exist when the container starts.
+RUN mkdir -p $HF_HOME $TRANSFORMERS_CACHE $WANDB_DIR $WANDB_CACHE_DIR
+# ================================================ #
 
-# Prepare cache directories
-RUN mkdir -p $HF_HOME $TRANSFORMERS_CACHE $WANDB_DIR $WANDB_CACHE_DIR && \
-    chmod -R a+rx /opt/venv/bin /root/.local/share/uv
-
-ENTRYPOINT ["/bin/bash", "-i", "-c", "source /opt/venv/bin/activate && exec bash -i"]
+# 9. Final Touches
+# The container is now ready. It does not need an ENTRYPOINT or CMD,
+# as the command will be provided by the Kubernetes TrainJob manifest.
+# This makes the container more flexible and follows best practices.
 CMD []

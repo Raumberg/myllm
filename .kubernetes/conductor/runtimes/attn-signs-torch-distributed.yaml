@@ -1,0 +1,49 @@
+apiVersion: trainer.kubeflow.org/v1alpha1                                                                                                                                                
+kind: ClusterTrainingRuntime                                                                                                                                                             
+metadata:                                                                                                                                                                                
+  name: attn-signs-torch-distributed
+spec:                                                             
+  mlPolicy:                                                       
+    numNodes: 1                                                   
+    torch:                                                        
+      numProcPerNode: auto                                        
+  template:                                                       
+    metadata: {}                                                  
+    spec:                                                             
+      replicatedJobs:                                                 
+      - name: node 
+       replicas: 1                                                                                                                                                                      
+        template:                                                                                                                                                                        
+          metadata:                                                                                                                                                                      
+            labels:                                                                                                                                                                      
+              trainer.kubeflow.org/trainjob-ancestor-step: trainer                                                                                                                       
+          spec:                                                                                                                                                                          
+            template:                                                                                                                                                                    
+              metadata: {}                                                                                                                                                               
+              spec:                                                                                                                                                                      
+                containers:                                                                                                                                                              
+                - command:                                        
+                  - /bin/bash                                     
+                  - -c                                            
+                  - |                                             
+                    echo "Torch Distributed Runtime"              
+                                                                  
+                    echo "--------------------------------------" 
+                    echo "Torch Default Runtime Env"              
+                    env | grep PET_                               
+                                                                  
+                    pip list                                      
+                  env:                                            
+                  - name: NCCL_DEBUG                              
+                    value: INFO                                   
+                  image: pytorch/pytorch:2.7.1-cuda12.8-cudnn9-runtime
+                  name: node                                          
+                  resources: {}                                       
+                  volumeMounts:                                       
+                  - mountPath: /dev/shm                               
+                    name: dshm                                        
+                volumes:                                              
+                - emptyDir:                                           
+                    medium: Memory                                    
+                    sizeLimit: 32Gi                                   
+                  name: dshm

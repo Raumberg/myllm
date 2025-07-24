@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Optional, List, Any
 import os
 import subprocess
+import socket
 
 import typer
 
@@ -21,6 +22,8 @@ from myllm.enums import AlgorithmType, EngineType
 from myllm.utils.io import ConfigDumper
 
 from accelerate import PartialState
+
+
 
 app = typer.Typer(add_completion=False)
 
@@ -112,9 +115,9 @@ def train(
     # It's a bit of a hack to parse it here before the main parser,
     # but it's the cleanest way to solve the chicken-and-egg problem.
     accel_config_path = None
-    if "--backend_config" in sys.argv:
+    if "--backend-config" in sys.argv:
         try:
-            index = sys.argv.index("--backend_config")
+            index = sys.argv.index("--backend-config")
             accel_config_path = sys.argv[index + 1]
         except (ValueError, IndexError):
             pass  # Let typer handle the error later

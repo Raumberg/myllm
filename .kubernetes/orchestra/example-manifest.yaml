@@ -1,0 +1,38 @@
+apiVersion: trainer.kubeflow.org/v1alpha1
+kind: TrainJob
+metadata:
+  name: myllm-distributed-job
+  namespace: default
+spec:
+  # Reference to the "recipe" for training.
+  # This field replaces the old `trainingRuntime`.
+  runtimeRef:
+    name: attn-signs-torch-distributed # attn-signs custom runtime overrided from trainer. see conductor/runtimes
+
+  # The main configuration block for the entire training job.
+  # This single block replaces the complex `replicaSpecs`.
+  trainer:
+    # Total number of nodes (pods) for the job.
+    numNodes: 2
+    # Docker image to use on all nodes.
+    image: your-doker-registry/myllm:latest
+    # The command to execute on ALL nodes.
+    # `accelerate` will use environment variables set by the operator
+    # to figure out its rank and world size.
+    command:
+    # this is the command to run the training job.
+    # basically the same as launching from one machine.
+      - "accelerate"
+      - "launch"
+      - "--config_file"
+      - "/libllm/configs/accelerate/stage3_multinode.yaml"
+      - "myllm"
+      - "train"
+      - "--config"
+      - "/libllm/configs/test-sft.yaml"
+      - "--algo"
+      - "sft"
+    # Resources to allocate for EACH node. This is the correct field name.
+    resourcesPerNode:
+      limits:
+        nvidia.com/gpu: "2"

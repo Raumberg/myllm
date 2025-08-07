@@ -7,6 +7,8 @@ from typing import Any, Optional
 
 from transformers import AutoTokenizer, AutoModelForCausalLM, PreTrainedTokenizerBase
 
+from myllm.config.schema import ModelCfg, DataCfg
+
 __all__ = ["TokenizerWrapper"]
 
 logger = logging.getLogger(__name__)
@@ -17,12 +19,8 @@ class TokenizerWrapper:
 
     def __init__(
         self,
-        tokenizer_name: str,
-        *,
-        pad_token: Optional[str] = None,
-        add_special_tokens: Optional[dict] = None,
-        chat_template: Optional[str] = None,
-        model_max_length: Optional[int] = None,
+        model_cfg: ModelCfg,
+        data_cfg: DataCfg,
         **hf_kwargs: Any,
     ):
         """Load and properly configure tokenizer.
@@ -35,33 +33,37 @@ class TokenizerWrapper:
             model_max_length: Max sequence length
             **hf_kwargs: Additional kwargs for AutoTokenizer.from_pretrained
         """
-        self.tokenizer_name = tokenizer_name
-        self.custom_pad_token = pad_token
+        self.tokenizer_name = model_cfg.name
+        self.chat_template = data_cfg.chat_template if hasattr(data_cfg, 'chat_template') else None
+        self.max_length = data_cfg.max_length if hasattr(data_cfg, 'max_length') else None
+        self.custom_pad_token = data_cfg.pad_token
+        self.add_special_tokens = data_cfg.add_special_tokens if hasattr(data_cfg, 'add_special_tokens') else None
         self._tokens_added = 0
-        
-        # Load tokenizer
-        self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_name, **hf_kwargs)
-        
+
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            self.tokenizer_name, **hf_kwargs
+        )
+
         # Set model_max_length if provided
-        if model_max_length is not None:
-            self.tokenizer.model_max_length = model_max_length
-            
-        # Set chat template if provided
-        if chat_template is not None:
-            self.tokenizer.chat_template = chat_template
-            
+        if self.max_length:
+            self.tokenizer.model_max_length = self.max_length
+
+        # Set chat template if provided, othervise infer from base tokenizer
+        if self.chat_template:
+            self.tokenizer.chat_template = self.chat_template
+
         # Add any custom special tokens first
-        if add_special_tokens:
-            num_added = self.tokenizer.add_special_tokens(add_special_tokens)
-            self._tokens_added += num_added
-            if num_added > 0:
-                logger.info(f"Added {num_added} special tokens: {add_special_tokens}")
-        
-        # Setup pad token properly
+        if self.add_special_tokens:
+            self._setup_special_tokens()
+
         self._setup_pad_token()
-        
-        # Log final configuration
         self._log_tokenizer_info()
+
+    def _setup_special_tokens(self):
+        num_added = self.tokenizer.add_special_tokens(self.add_special_tokens)
+        self._tokens_added += num_added
+        if num_added > 0:
+            logger.info(f"Added {num_added} special tokens: {self.add_special_tokens}")
 
     def _setup_pad_token(self):
         """Setup pad_token according to user preference and safety checks."""
@@ -73,7 +75,7 @@ class TokenizerWrapper:
             return
 
         # 2. If no custom token, check if one already exists.
-        if self.tokenizer.pad_token is not None:
+        if self.tokenizer.pad_token:
             logger.info(f"Using existing pad_token: '{self.tokenizer.pad_token}'")
             if self.tokenizer.pad_token_id == self.tokenizer.eos_token_id:
                 logger.warning(
@@ -84,7 +86,7 @@ class TokenizerWrapper:
 
         # 3. If no existing token, try to infer a SAFE one (not EOS).
         logger.info("No pad_token found. Attempting to infer a safe one.")
-        if self.tokenizer.unk_token is not None and self.tokenizer.unk_token_id != self.tokenizer.eos_token_id:
+        if self.tokenizer.unk_token and self.tokenizer.unk_token_id != self.tokenizer.eos_token_id:
             logger.info(f"Setting pad_token to unk_token: '{self.tokenizer.unk_token}'")
             self.tokenizer.pad_token = self.tokenizer.unk_token
         else:
@@ -138,6 +140,7 @@ class TokenizerWrapper:
             logger.info(f"Resized model embeddings by {self._tokens_added} tokens.")
 
         logger.info("Tokenizer synced with model config")
+        return self
 
     @property
     def vocab_size_changed(self) -> bool:

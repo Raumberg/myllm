@@ -96,6 +96,7 @@ class DataCfg(BaseModel):
     test_split:                         str | None      = None
     collator:                           CollatorCfg     = Field(default_factory=CollatorCfg)
     pad_token:                          str | None      = None
+    add_special_tokens:                 dict | None     = Field(default_factory=dict)
 
 
 class EngineCfg(BaseModel):

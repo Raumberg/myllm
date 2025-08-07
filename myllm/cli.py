@@ -129,7 +129,7 @@ def train(
     from myllm.engines import get_engine
     from myllm.algorithms import get_algorithm, get_trainer_class
     from myllm.data import DataModule
-    from myllm.models import ModelWrapper
+    from myllm.models import ModelWrapper, TokenizerWrapper
     from myllm.utils.logging_utils import apply_logging_cfg
     from myllm.kerr.patching import patch_model
 
@@ -146,6 +146,12 @@ def train(
         attn_implementation=cfg_obj.model.attn_implementation,
     ).model
 
+    # Tokenizer
+    tokenizer = TokenizerWrapper(
+        model_cfg=cfg_obj.model,
+        data_cfg=cfg_obj.data
+    ).sync_with_model(model).tokenizer
+
     # Patch model with fused kernels if enabled
     if getattr(cfg_obj.training, "use_fused_kernels", False):
         logger.info("⚡️ Patching model with fused kernels...")
@@ -156,15 +162,11 @@ def train(
     trainer_cls = get_trainer_class(algo_mod)
 
     # Datasets and dataloaders
-    dm = (
-        DataModule(
+    dm = DataModule(
             data_cfg=cfg_obj.data,
             training_cfg=cfg_obj.training,
-            tokenizer_name=cfg_obj.model.name,
-        )
-        .setup()
-        .sync_with_model(model)
-    )
+            tokenizer=tokenizer
+        ).setup()
 
     # Select training dataloader
     train_dataloader = dm.get_train_dataloader()

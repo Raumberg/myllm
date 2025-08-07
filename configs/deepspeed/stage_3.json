@@ -30,6 +30,7 @@
         "offload_param": {
             "device": "none"
           },
+
         "allgather_partitions": true,
         "allgather_bucket_size": 2e8,
         "overlap_comm": true,

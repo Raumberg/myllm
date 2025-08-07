@@ -13,8 +13,8 @@ model:
   # use_8bit: false  # load in 8-bit via bitsandbytes
   # bnb_compute_dtype: "bf16"  # compute dtype for 4-bit if enabled
 
-  # Attention optimisation backend (optional): xformers | flash_attention_2
-  # attn_implementation: kernels-community/flash-attn
+  # Attention optimisation backend (optional): xformers | flash_attention_2 or kernels-community
+  attn_implementation: kernels-community/flash-attn3 # warning! only for hopper architecture
 
 wandb:
   enable: false
@@ -36,7 +36,7 @@ training:
   sft:
     padding_free: false           # make sure not to use custom collator when setting to true. provide collator: type: null
     activation_offloading: false  # does not work with liger kernel
-    use_liger_kernel: false
+    use_liger_kernel: true
     neftune_noise_alpha: 5        # arxiv: 2310.05914 / https://huggingface.co/papers/2310.05914
     # packing: true
     # packing_strategy: "wrapped"

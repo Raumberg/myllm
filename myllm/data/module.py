@@ -23,26 +23,14 @@ logger = logging.getLogger(__name__)
 
 
 class DataModule:
-    def __init__(self, data_cfg: DataCfg, training_cfg: TrainingCfg, tokenizer_name: str | None = None):
+    def __init__(self, data_cfg: DataCfg, training_cfg: TrainingCfg, tokenizer: AutoTokenizer):
         self.data_cfg = data_cfg
         self.training_cfg = training_cfg
+        self.tokenizer = tokenizer
 
         # Activate HF offline mode if requested BEFORE any HF import that triggers network
         if self.data_cfg.offline:
             os.environ["HF_DATASETS_OFFLINE"] = "1"
-
-        assert tokenizer_name is not None, "Tokenizer name is required"
-        
-        # Use TokenizerWrapper for proper tokenizer setup
-        self.tokenizer_wrapper = TokenizerWrapper(
-            tokenizer_name=tokenizer_name,
-            pad_token=self.data_cfg.pad_token,  # Pass the custom pad token from the config
-            chat_template=self.data_cfg.chat_template if hasattr(self.data_cfg, 'chat_template') else None,
-            model_max_length=self.data_cfg.max_length if hasattr(self.data_cfg, 'max_length') else None,
-        )
-        
-        # Expose tokenizer for backward compatibility
-        self.tokenizer = self.tokenizer_wrapper.tokenizer
 
     # ---------------------------------------------------------------------
     # Public API
@@ -108,10 +96,10 @@ class DataModule:
 
         return self
 
-    def sync_with_model(self, model: Any) -> "DataModule":
-        """Convenience chaining method to sync tokenizer with a model."""
-        self.tokenizer_wrapper.sync_with_model(model)
-        return self
+    # def sync_with_model(self, model: Any) -> "DataModule":
+    #     """Convenience chaining method to sync tokenizer with a model."""
+    #     self.tokenizer_wrapper.sync_with_model(model)
+    #     return self
 
     def get_train_dataloader(self, shuffle: bool = False, num_workers: int = 2) -> DataLoader:  # noqa: D401
         return DataLoader(

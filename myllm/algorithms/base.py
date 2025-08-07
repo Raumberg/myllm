@@ -11,7 +11,7 @@ import os
 
 from transformers import TrainingArguments
 
-from myllm.utils.lazy import peft
+from myllm.utils.lazy import peft, bitsandbytes
 from myllm.utils.std import infer_dtype
 
 __all__ = ["BaseTrainer"]
@@ -25,8 +25,12 @@ class BaseTrainer(ABC):
         self.engine = engine  # DeepSpeedEngine or Accelerator wrapper (can be None)
         self.cfg = cfg
 
+        self.model_cfg = self.cfg.model
+        self.train_cfg = self.cfg.training
+        self.engine_cfg = self.cfg.engine
+
         # Resolve output dir early so all helpers can reuse it
-        self.output_dir: str = getattr(cfg.training, "output_dir", "experiments")
+        self.output_dir: str = self.train_cfg.output_dir
 
         # Shared utilities -------------------------------------------------
         self._setup_wandb_env()
@@ -38,42 +42,60 @@ class BaseTrainer(ABC):
     def build_training_args(self, **extra: Dict[str, Any]) -> TrainingArguments:  # noqa: D401
         """Create `TrainingArguments` from config with optional *extra* overrides."""
 
-        # get all configs
-        train_cfg = self.cfg.training
-        model_cfg = self.cfg.model
-        engine_cfg = self.cfg.engine
-
         # get dtype flags
-        fp16, bf16 = self._dtype_flags(model_cfg.dtype)
+        fp16, bf16 = self._dtype_flags(self.model_cfg.dtype)
 
         # Ensure numeric LR
-        lr_val = self._ensure_numeric_lr(train_cfg.lr)
+        lr_val = self._ensure_numeric_lr(self.train_cfg.lr)
 
         # Determine local_rank for distributed runs so that TrainingArguments.device maps correctly.
         local_rank_env = int(os.environ.get("LOCAL_RANK", -1))
 
+        # Using AdamW 8bit optimizer (Does not work for now)
+        # if self.train_cfg.optimizer_type == "AdamW8bit": 
+
+            # --- GPU VRAM USAGE --- # 
+            # Tests for 2xH100:
+            # Full finetuning of 8B Model
+            # Original fused AdamW:       |      68.785GB   VRAM each
+            # BNB 8bit AdamW:             |      ???        VRAM each
+            # --- ************** --- #
+
+            # TODO: check how it affects embeddings, bcs bnb.nn.StableEmbedding is recommended
+            # optimizer = bitsandbytes.optim.Adam(
+            #     self.model.parameters(),
+            #     lr=lr_val,
+            #     betas=(0.9, 0.995),
+            #     eps=1e-8,
+            # )
+            # TODO: probably should add Manager.override_config for different layers to use precise adamw instead of 8bit
+            # TODO: probably also dig towards paged_optim, but is it even supported in deepspeed?.. fuck me
+        # else:
+        #     optimizer = self.train_cfg.optimizer_type or "adamw_torch_fused"
+
         # derive base kwargs
         base_kwargs: Dict[str, Any] = dict(
             output_dir=self.output_dir,
-            per_device_train_batch_size=train_cfg.micro_batch_size,
-            per_device_eval_batch_size=train_cfg.micro_batch_size,
-            gradient_accumulation_steps=train_cfg.gradient_accumulation_steps,
-            num_train_epochs=train_cfg.epochs,
+            per_device_train_batch_size=self.train_cfg.micro_batch_size,
+            per_device_eval_batch_size=self.train_cfg.micro_batch_size,
+            gradient_accumulation_steps=self.train_cfg.gradient_accumulation_steps,
+            num_train_epochs=self.train_cfg.epochs,
             learning_rate=lr_val,
             fp16=fp16,
             bf16=bf16,
-            seed=train_cfg.seed,
+            seed=self.train_cfg.seed,
             report_to=(["wandb"] if self.cfg.wandb.enable else ["none"]),
-            logging_steps=train_cfg.logging_steps,
-            gradient_checkpointing=train_cfg.gradient_checkpointing,
+            logging_steps=self.train_cfg.logging_steps,
+            gradient_checkpointing=self.train_cfg.gradient_checkpointing,
             local_rank=local_rank_env,
             disable_tqdm=self.cfg.logging.disable_tqdm,
-            use_liger_kernel=train_cfg.use_liger_kernel,
+            use_liger_kernel=self.train_cfg.use_liger_kernel,
+            # optim=self.train_cfg.optimizer_type # this shit no more accepts pure optim class, or maybe I'm dumb and didn't figure it out yet
         )
 
         # add deepspeed config if deepspeed engine is used
-        if engine_cfg.name == "deepspeed" and getattr(engine_cfg, "config", None):
-            base_kwargs["deepspeed"] = str(engine_cfg.config)
+        # if self.engine_cfg.name == "deepspeed" and self.engine_cfg.config == None:
+        #     base_kwargs["deepspeed"] = str(self.engine_cfg.config)
 
         # add extra kwargs if any 
         base_kwargs.update(extra)
@@ -108,19 +130,16 @@ class BaseTrainer(ABC):
             os.environ.setdefault("WANDB_RUN_ID", wb.resume_id)
 
     def _build_peft_cfg(self):  # noqa: D401
-        mc = self.cfg.model
-        if not getattr(mc, "use_peft", False):
+        if not self.model_cfg.use_peft:
             return None
 
-        task_type = getattr(peft.TaskType, mc.lora_task_type, peft.TaskType.CAUSAL_LM)
-
         return peft.LoraConfig(
-            r=mc.lora_r,
-            lora_alpha=mc.lora_alpha,
-            lora_dropout=mc.lora_dropout,
+            r=self.model_cfg.lora_r,
+            lora_alpha=self.model_cfg.lora_alpha,
+            lora_dropout=self.model_cfg.lora_dropout,
             bias="none",
-            target_modules=mc.lora_target_modules,
-            task_type=task_type,
+            target_modules=self.model_cfg.lora_target_modules,
+            task_type=self.model_cfg.lora_task_type,
         )
 
     # ------------------------------------------------------------------
@@ -152,4 +171,4 @@ class BaseTrainer(ABC):
                 lr = float(lr)
             except ValueError:
                 raise ValueError(f"training.lr must be float, got '{lr}'")
-        return lr
+        return lr 

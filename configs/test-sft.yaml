@@ -1,20 +1,20 @@
 model:
   name: attn-signs/GPTR-8b-v2
   dtype: bf16
-  use_peft: true
-  lora_r: 16
-  lora_alpha: 32
-  lora_dropout: 0.05
-  lora_target_modules: ["q_proj", "k_proj", "v_proj", "o_proj"]
-  lora_task_type: "CAUSAL_LM"
+  use_peft: false
+  # lora_r: 16
+  # lora_alpha: 32
+  # lora_dropout: 0.05
+  # lora_target_modules: ["q_proj", "k_proj", "v_proj", "o_proj"]
+  # lora_task_type: "CAUSAL_LM"
 
   # Quantisation – either 4bit or 8bit (mutually exclusive)
-  use_4bit: false
-  use_8bit: false  # load in 8-bit via bitsandbytes
-  bnb_compute_dtype: "bf16"  # compute dtype for 4-bit if enabled
+  # use_4bit: false
+  # use_8bit: false  # load in 8-bit via bitsandbytes
+  # bnb_compute_dtype: "bf16"  # compute dtype for 4-bit if enabled
 
   # Attention optimisation backend (optional): xformers | flash_attention_2
-  # attn_implementation: flash_attention_2
+  # attn_implementation: kernels-community/flash-attn
 
 wandb:
   enable: false
@@ -30,12 +30,13 @@ training:
   gradient_checkpointing: true
   max_seq_length: 2048
   logging_steps: 1
+  # optimizer_type: "adamw_torch_fused"
 
   # SFTConfig specific kwargs
   sft:
     padding_free: false           # make sure not to use custom collator when setting to true. provide collator: type: null
     activation_offloading: false  # does not work with liger kernel
-    use_liger_kernel: true
+    use_liger_kernel: false
     neftune_noise_alpha: 5        # arxiv: 2310.05914 / https://huggingface.co/papers/2310.05914
     # packing: true
     # packing_strategy: "wrapped"

@@ -4,29 +4,32 @@
             "loss_scale": 512
         },
         "bf16": {
-        "enabled": "auto"
+            "enabled": "auto"
         },
         "optimizer": {
-        "type": "AdamW",
-        "params": {
-            "lr": "auto",
-            "betas": "auto",
-            "eps": "auto",
-            "weight_decay": "auto"
-            }
+            "type": "AdamW",
+            "params": {
+                "lr": "auto",
+                "betas": "auto",
+                "eps": "auto",
+                "weight_decay": "auto"
+                }
         },
     "scheduler": {
-    "type": "WarmupDecayLR",
-    "params": {
-        "warmup_min_lr": "auto",
-        "warmup_max_lr": "auto",
-        "warmup_num_steps": "auto",
-        "total_num_steps": "auto"
-        }
-     },
+        "type": "WarmupDecayLR",
+        "params": {
+            "warmup_min_lr": "auto",
+            "warmup_max_lr": "auto",
+            "warmup_num_steps": "auto",
+            "total_num_steps": "auto"
+            }
+        },
   
     "zero_optimization": {
         "stage": 3,
+        "offload_param": {
+            "device": "none"
+          },
         "allgather_partitions": true,
         "allgather_bucket_size": 2e8,
         "overlap_comm": true,
@@ -54,11 +57,5 @@
    "steps_per_print": 2,
    "train_batch_size": "auto",
    "train_micro_batch_size_per_gpu": "auto",
-   "wall_clock_breakdown": false,
-    "transformer_engine": {
-        "enabled": true
-    },
-    "transformer_kernel": {
-        "flash_attn": true
-    }
+   "wall_clock_breakdown": false
 }

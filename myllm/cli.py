@@ -115,7 +115,7 @@ def train(
     # It's a bit of a hack to parse it here before the main parser,
     # but it's the cleanest way to solve the chicken-and-egg problem.
     accel_config_path = None
-    if "--backend-config" in sys.argv:
+    if "--backend-config" in sys.argv and backend_config:
         try:
             index = sys.argv.index("--backend-config")
             accel_config_path = sys.argv[index + 1]
@@ -131,7 +131,7 @@ def train(
     from myllm.data import DataModule
     from myllm.models import ModelWrapper
     from myllm.utils.logging_utils import apply_logging_cfg
-    from myllm.kernels.patching import patch_model
+    from myllm.kerr.patching import patch_model
 
     # Config
     cfg_obj = SmartParser.load_from_file(config, overrides)
@@ -170,8 +170,9 @@ def train(
     train_dataloader = dm.get_train_dataloader()
 
     # Engine
-    engine_mod = get_engine(engine)
-    engine, _, _, _ = engine_mod.prepare(cfg_obj, model, dataloader_len=len(train_dataloader))
+    # engine_mod = get_engine(engine)
+    # engine, _, _, _ = engine_mod.prepare(cfg_obj, model, dataloader_len=len(train_dataloader))
+    engine = None       # for now, launch with no engine, since HF Trainers launch the engine under the hood.
 
     # Trainer
     trainer = trainer_cls(model, engine, cfg_obj)

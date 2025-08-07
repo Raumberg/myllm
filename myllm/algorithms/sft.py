@@ -45,7 +45,6 @@ class SFTTrainer(BaseTrainer):
         # Add max_length for SFTConfig (not supported in TrainingArguments)
         if hasattr(cfg.training, 'max_seq_length'):
             sft_kwargs['max_length'] = cfg.training.max_seq_length
-            sft_kwargs['max_seq_length'] = cfg.training.max_seq_length
 
         # populate SFTConfig with kwargs
         self.sft_args = SFTConfig(**sft_kwargs)  # type: ignore[arg-type]
@@ -79,7 +78,7 @@ class SFTTrainer(BaseTrainer):
         )
 
         # ------------------------------------------------------------------
-        # Enable global FP8 autocast if requested in config.
+        # TODO: Enable global FP8 autocast if requested in config.
         # ------------------------------------------------------------------
         self.trl_trainer.train(resume_from_checkpoint=resume_from)
 

@@ -3,6 +3,8 @@ from __future__ import annotations
 """Simple HuggingFace causal LM wrapper (LoRA/quant aware)."""
 
 from typing import Any
+import warnings
+import logging
 
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -10,6 +12,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from myllm.utils.lazy import bitsandbytes
 
 __all__ = ["ModelWrapper"]
+logger = logging.getLogger(__name__)
 
 
 class ModelWrapper:
@@ -61,9 +64,13 @@ class ModelWrapper:
             **hf_kwargs,
         )
 
-        if torch.cuda.is_available() and not (use_4bit or use_8bit):
+        # if torch.cuda.is_available() and not (use_4bit or use_8bit):
             # When quantised with device_map=auto model is already on GPU
-            self.model.cuda()
+            # self.model.cuda()
+
+        if not model_cfg.use_peft:
+            self.check_grad_parameters()
+            
 
     def generate(self, prompt: str, **gen_kwargs: Any) -> str:  # noqa: D401
         device = next(self.model.parameters()).device
@@ -71,3 +78,17 @@ class ModelWrapper:
         with torch.no_grad():
             out = self.model.generate(**inputs, **gen_kwargs)
         return self.tokenizer.decode(out[0], skip_special_tokens=True) 
+
+    def check_grad_parameters(self):
+        for name, param in self.model.named_parameters():
+            if not param.requires_grad:
+                warnings.warn(
+                    f"Detected frozen parameter while attempting to full finetune! Parameter: {name}"
+                )
+                logger.info(f"Parameter {name} does not require grad!")
+            if param.numel() == 0:
+                warnings.warn(
+                    f"Detected empty parameter! Parameter: {name}, shape: {param.shape}"
+                )
+                logger.info(f"Parameter {name} is empty!")
+        logger.info("Ready for full finetuning")

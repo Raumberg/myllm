@@ -44,8 +44,8 @@ class DeepSpeedConfigTuner:
         self._tune_optimizer()
         self._tune_scheduler()
         self._tune_gradient_clipping()
-        self._tune_transformer_engine()
-        # self._tune_flops_profiler()   # TODO: fix this
+        # self._tune_transformer_engine()       # TODO: for fp8 
+        # self._tune_flops_profiler()           # TODO: fix this
 
         self._validate()
         return self.ds_cfg
@@ -67,7 +67,7 @@ class DeepSpeedConfigTuner:
 
         with config_path.open("r", encoding="utf-8") as fp:
             self.ds_cfg = json.load(fp)
-        logger.debug("Loaded DeepSpeed config from %s", config_path)
+        logger.info("Loaded DeepSpeed config from %s", config_path)
 
     def _get_config_path(self) -> Optional[str | os.PathLike]:
         """Find the path to the DeepSpeed config file within the main config."""
@@ -130,7 +130,7 @@ class DeepSpeedConfigTuner:
         self.ds_cfg["train_batch_size"] = train_bs
         self.ds_cfg["train_micro_batch_size_per_gpu"] = micro_bs
         self.ds_cfg["gradient_accumulation_steps"] = grad_accum
-        logger.debug("Auto-tuned batch size: train_bs=%d, micro_bs=%d, grad_accum=%d", train_bs, micro_bs, grad_accum)
+        logger.info("Auto-tuned batch size: train_bs=%d, micro_bs=%d, grad_accum=%d", train_bs, micro_bs, grad_accum)
 
     def _tune_precision(self):
         """Tune fp16/bf16 settings from myllm config."""
@@ -146,11 +146,11 @@ class DeepSpeedConfigTuner:
         if precision == "bf16":
             self.ds_cfg["bf16"]["enabled"] = True
             self.ds_cfg["fp16"]["enabled"] = False
-            logger.debug("Auto-tuned precision: bf16 enabled, fp16 disabled")
+            logger.info("Auto-tuned precision: bf16 enabled, fp16 disabled")
         elif precision == "fp16":
             self.ds_cfg["bf16"]["enabled"] = False
             self.ds_cfg["fp16"]["enabled"] = True
-            logger.debug("Auto-tuned precision: fp16 enabled, bf16 disabled")
+            logger.info("Auto-tuned precision: fp16 enabled, bf16 disabled")
 
     def _tune_zero3(self):
         """Tune ZeRO Stage 3 specific parameters from myllm config."""
@@ -163,7 +163,7 @@ class DeepSpeedConfigTuner:
 
         # Reduce bucket size
         if self._is_auto(zero3_cfg.get("reduce_bucket_size")):
-            zero3_cfg["reduce_bucket_size"] = hidden_size * hidden_layers
+            zero3_cfg["reduce_bucket_size"] = hidden_size * hidden_layers * 10 # added 10
         
         # All-gather bucket size
         if self._is_auto(zero3_cfg.get("stage3_allgather_bucket_size")):
@@ -175,15 +175,18 @@ class DeepSpeedConfigTuner:
         # Enable async partitioning for better performance
         if self._is_auto(zero3_cfg.get("overlap_comm")):
             zero3_cfg["overlap_comm"] = True
-            logger.debug("Auto-tuned overlap_comm: enabled")
+            logger.info("Auto-tuned overlap_comm: enabled")
 
         # Thresholds and limits
         if self._is_auto(zero3_cfg.get("stage3_param_persistence_threshold")):
-            zero3_cfg["stage3_param_persistence_threshold"] = 10 * hidden_size
+            zero3_cfg["stage3_param_persistence_threshold"] = 10 * hidden_size          # 1_000_000_000 * hidden_size 
         if self._is_auto(zero3_cfg.get("stage3_max_live_parameters")):
             zero3_cfg["stage3_max_live_parameters"] = 1e9
 
-        logger.debug("Auto-tuned ZeRO-3 parameters")
+        # setting offload_parameters to null
+        zero3_cfg["offload_param"] = None
+
+        logger.info("Auto-tuned ZeRO-3 parameters")
 
 
     def _tune_optimizer(self):
@@ -197,7 +200,7 @@ class DeepSpeedConfigTuner:
         # Set AdamW as default. DeepSpeed will use FusedAdam implementation if available.
         if self._is_auto(optimizer_cfg.get("type")):
             optimizer_cfg["type"] = "AdamW"
-            logger.debug("Auto-tuned optimizer type: AdamW (will use FusedAdam if available)")
+            logger.info("Auto-tuned optimizer type: AdamW (will use FusedAdam if available)")
 
         # Ensure 'params' sub-dictionary exists
         if "params" not in optimizer_cfg:
@@ -214,7 +217,7 @@ class DeepSpeedConfigTuner:
         if self._is_auto(optimizer_params.get("eps")):
             optimizer_params["eps"] = 1e-8
         
-        logger.debug("Auto-tuned optimizer parameters")
+        logger.info("Auto-tuned optimizer parameters")
 
 
     def _tune_scheduler(self):
@@ -247,14 +250,14 @@ class DeepSpeedConfigTuner:
         ):
             scheduler_params["total_num_steps"] = self.dataloader_len * training_cfg.epochs
 
-        logger.debug("Auto-tuned scheduler parameters")
+        logger.info("Auto-tuned scheduler parameters")
 
 
     def _tune_gradient_clipping(self):
         """Set gradient clipping from myllm config if not set in deepspeed config."""
         if self._is_auto(self.ds_cfg.get("gradient_clipping")):
             self.ds_cfg["gradient_clipping"] = self.cfg.training.gradient_clipping
-            logger.debug("Auto-tuned gradient clipping")
+            logger.info("Auto-tuned gradient clipping")
 
     def _tune_transformer_engine(self):
         """Enable Flash Attention if available and set in config."""
@@ -264,14 +267,14 @@ class DeepSpeedConfigTuner:
         if self._is_auto(self.ds_cfg["transformer_engine"].get("enabled")):
             # Enable by default as it's a good practice for modern GPUs
             self.ds_cfg["transformer_engine"]["enabled"] = True
-            logger.debug("Auto-tuned transformer_engine: enabled")
+            logger.info("Auto-tuned transformer_engine: enabled")
 
         if self.ds_cfg["transformer_engine"]["enabled"]:
             if "transformer_kernel" not in self.ds_cfg:
                 self.ds_cfg["transformer_kernel"] = {}
             if "flash_attn" not in self.ds_cfg["transformer_kernel"]:
                 self.ds_cfg["transformer_kernel"]["flash_attn"] = True
-                logger.debug("Auto-tuned transformer_kernel: flash_attn enabled")
+                logger.info("Auto-tuned transformer_kernel: flash_attn enabled")
 
     def _tune_flops_profiler(self):
         """Tune flops profiler parameters from myllm config."""
@@ -281,7 +284,7 @@ class DeepSpeedConfigTuner:
         flops_profiler_cfg = self.ds_cfg["flops_profiler"]
         timestamp = datetime.now().strftime("%H:%M:%S")
         flops_profiler_cfg["output_file"] = f"{self.run_dir}/{timestamp}_profiler.log"
-        logger.debug("Auto-tuned flops_profiler: output_file set to %s", flops_profiler_cfg["output_file"])
+        logger.info("Auto-tuned flops_profiler: output_file set to %s", flops_profiler_cfg["output_file"])
 
     def _validate(self) -> None:
         """Recursively walk config and raise if any 'auto' placeholders remain."""
@@ -330,7 +333,7 @@ def prepare(
         # If no optimizer is specified, use Adam from training config
         if "optimizer" not in ds_config:
             logger.info("No optimizer specified in DeepSpeed config, creating Adam from main config")
-            optim_params = [p for p in model.parameters() if p.requires_grad]
+            optim_params = [p for p in model.named_parameters() if p.requires_grad]
             optimizer = torch.optim.Adam(
                 optim_params,
                 lr=cfg.training.lr,

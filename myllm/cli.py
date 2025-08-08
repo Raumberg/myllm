@@ -10,7 +10,7 @@ $ myllm train --config configs/alpaca_sft.yaml --algo sft --engine deepspeed
 import logging
 import sys
 from pathlib import Path
-from typing import Optional, List, Any
+from typing import Optional, List, Any, Final
 import os
 import subprocess
 import socket
@@ -37,12 +37,13 @@ def _root(ctx: typer.Context):  # noqa: D401
     if ctx.invoked_subcommand is None:
         typer.echo(ctx.get_help())
 
-def _init_and_dump(cfg: Any, output_dir: Path) -> Optional[ConfigDumper]:
+def _init_and_dump(cfg: Any, trainer: Any) -> Optional[ConfigDumper]:
     """Initialize a ConfigDumper for dumping configs to output_dir."""
     if PartialState().is_main_process:
-        dumper = ConfigDumper(output_dir=output_dir)
+        dumper = ConfigDumper(output_dir=cfg.training.run_dir)
         dumper.dump(cfg, "main_config")
-        return dumper
+        _dump_from_trainer(trainer, dumper)
+        return None
     return None
 
 def _dump_from_trainer(trainer: Any, dumper: ConfigDumper) -> None:
@@ -126,7 +127,6 @@ def train(
 
     # Lazy imports to speed up CLI display
     from myllm.config.argparser import SmartParser
-    from myllm.engines import get_engine
     from myllm.algorithms import get_algorithm, get_trainer_class
     from myllm.data import DataModule
     from myllm.models import ModelWrapper, TokenizerWrapper
@@ -177,17 +177,18 @@ def train(
     engine = None       # for now, launch with no engine, since HF Trainers launch the engine under the hood.
 
     # Trainer
-    trainer = trainer_cls(model, engine, cfg_obj)
+    trainer = trainer_cls(model, engine, cfg_obj, tokenizer)
 
     # Dump all other configs
     if dump:
-        output_dir = Path(cfg_obj.training.output_dir)
-        dumper = _init_and_dump(cfg_obj, output_dir)  # type: ignore[assignment]
-        _dump_from_trainer(trainer, dumper)
+        _init_and_dump(cfg_obj, trainer)
 
     # Training
     ckpt_path = resume_from or cfg_obj.training.resume_from_checkpoint
-    trainer.train(train_dataloader, resume_from=str(ckpt_path) if ckpt_path else None)
+    trainer.train(
+        train_dataloader, 
+        resume_from=str(ckpt_path) if ckpt_path else None
+        )
 
     typer.echo("Training loop finished.")
 

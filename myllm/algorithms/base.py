@@ -9,7 +9,7 @@ import torch
 from torch.utils.data import DataLoader
 import os
 
-from transformers import TrainingArguments
+from transformers import TrainingArguments, AutoTokenizer
 
 from myllm.utils.lazy import peft, bitsandbytes
 from myllm.utils.std import infer_dtype
@@ -20,7 +20,7 @@ __all__ = ["BaseTrainer"]
 class BaseTrainer(ABC):
     """Common facilities shared by all algorithm-specific trainers."""
 
-    def __init__(self, model: torch.nn.Module, engine: Any, cfg: Any):  # noqa: D401
+    def __init__(self, model: torch.nn.Module, engine: Any, cfg: Any, tokenizer: AutoTokenizer):  # noqa: D401
         self.model = model
         self.engine = engine  # DeepSpeedEngine or Accelerator wrapper (can be None)
         self.cfg = cfg
@@ -29,8 +29,7 @@ class BaseTrainer(ABC):
         self.train_cfg = self.cfg.training
         self.engine_cfg = self.cfg.engine
 
-        # Resolve output dir early so all helpers can reuse it
-        self.output_dir: str = self.train_cfg.output_dir
+        self.tokenizer = tokenizer
 
         # Shared utilities -------------------------------------------------
         self._setup_wandb_env()
@@ -75,7 +74,7 @@ class BaseTrainer(ABC):
 
         # derive base kwargs
         base_kwargs: Dict[str, Any] = dict(
-            output_dir=self.output_dir,
+            output_dir=self.train_cfg.output_dir,
             per_device_train_batch_size=self.train_cfg.micro_batch_size,
             per_device_eval_batch_size=self.train_cfg.micro_batch_size,
             gradient_accumulation_steps=self.train_cfg.gradient_accumulation_steps,
@@ -84,18 +83,17 @@ class BaseTrainer(ABC):
             fp16=fp16,
             bf16=bf16,
             seed=self.train_cfg.seed,
-            report_to=(["wandb"] if self.cfg.wandb.enable else ["none"]),
+            report_to=(["wandb"] if self.cfg.wandb.enable else [self.cfg.data.report_to]),
             logging_steps=self.train_cfg.logging_steps,
+            logging_dir=self.train_cfg.run_dir,
             gradient_checkpointing=self.train_cfg.gradient_checkpointing,
             local_rank=local_rank_env,
             disable_tqdm=self.cfg.logging.disable_tqdm,
             use_liger_kernel=self.train_cfg.use_liger_kernel,
+            save_strategy=self.train_cfg.save_strategy,
+            save_steps=self.train_cfg.save_steps
             # optim=self.train_cfg.optimizer_type # this shit no more accepts pure optim class, or maybe I'm dumb and didn't figure it out yet
         )
-
-        # add deepspeed config if deepspeed engine is used
-        # if self.engine_cfg.name == "deepspeed" and self.engine_cfg.config == None:
-        #     base_kwargs["deepspeed"] = str(self.engine_cfg.config)
 
         # add extra kwargs if any 
         base_kwargs.update(extra)

@@ -43,11 +43,11 @@ def apply_logging_cfg(cfg: LoggingCfg) -> None:  # noqa: D401
     lvl = _LEVEL_MAP.get(cfg.level.lower(), logging.INFO)
     root = logging.getLogger()
 
-    # If root has *no* handlers OR has handlers but ни одного StreamHandler, переинициализируем
+    # If root has no handlers OR has handlers but not a single StreamHandler, reinit this shit
     needs_stream = not any(isinstance(h, logging.StreamHandler) for h in root.handlers)
 
     if not root.handlers or needs_stream:
-        # force=True гарантирует, что чужие dummy-хендлеры будут заменены
+        # force=True guarantees that foreign handlers will be replaced
         logging.basicConfig(
             level=lvl,
             format="%(asctime)s %(levelname)s: %(message)s",
@@ -55,7 +55,7 @@ def apply_logging_cfg(cfg: LoggingCfg) -> None:  # noqa: D401
             force=True,
         )
     else:
-        # Уже настроено — только уровень подровняем
+        # just set up level othervise
         root.setLevel(lvl)
 
     _silence_modules(cfg.suppress)

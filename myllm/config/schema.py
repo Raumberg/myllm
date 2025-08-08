@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field, field_validator
 
 from myllm.quant.fp8 import FP8RecipeBuilder as QuantCfg
+from myllm.utils.io import get_run_dir
 
 __all__ = [
     "ModelCfg",
@@ -57,7 +58,12 @@ class TrainingCfg(BaseModel):
     resume_from_checkpoint:             Optional[str]   = None
     use_liger_kernel:                   bool            = True
     max_seq_length:                     int             = 2048
-    optimizer_type:                     str             = None # AdamW | AdamW8bit
+    optimizer_type:                     str             = None      # AdamW | AdamW8bit
+    save_strategy:                      str             = 'steps'
+    save_steps:                         int             = 500
+    save_total_limit:                   int             = 3
+
+    run_dir:                            Optional[str]   = get_run_dir(output_dir)
 
 
 class CollatorCfg(BaseModel):
@@ -83,20 +89,18 @@ class DataCfg(BaseModel):
     split:                              str             = "train[:1%]"
     test_size:                          Optional[float] = None
     from_disk:                          bool            = False
-    text_field:                         str             = "conversation"
-    problem_field:                      str             = "problem"
-    answer_field:                       str             = "answer"
     max_length:                         int             = 512
+    report_to:                          str             = "tensorboard"
     chat_template:                      str | None      = None
     system_prompt:                      str | None      = None
     model_support_system_role:          bool            = True
-    processor_type:                     str             = "default"
+    processor:                          ProcessorCfg    = Field(default_factory=ProcessorCfg)
     offline:                            bool            = False
     eval_split:                         str | None      = None
     test_split:                         str | None      = None
     collator:                           CollatorCfg     = Field(default_factory=CollatorCfg)
     pad_token:                          str | None      = None
-    add_special_tokens:                 dict | None     = Field(default_factory=dict)
+    add_special_tokens:                 list | None     = Field(default_factory=list)
 
 
 class EngineCfg(BaseModel):

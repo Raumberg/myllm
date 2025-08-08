@@ -23,3 +23,5 @@ nccl-tests
 .kubernetes/orchestra/kubernetes-manifest.yaml
 hostfile
 scripts
+configs/attn-signs
+test-model.ipynb

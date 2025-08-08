@@ -28,14 +28,15 @@ dependencies = [
     "datasets>=3.6.0",
     "typer[all]>=0.15.1",
     "pyyaml>=6.0.2",
-    "trl>=0.19.1",
+    "trl>=0.21.0",
     "peft>=0.15.2",
     "wandb>=0.20.1",
     "bitsandbytes>=0.46.0",
     "latex2sympy2_extended>=1.10.1",
     "math_verify>=0.7.0",
     "pynvml>=12.0.0",
-    "loguru>=0.7.2"
+    "loguru>=0.7.2",
+    "tensorboard>=2.20.0"
 ]
 
 [project.optional-dependencies]
@@ -53,7 +54,7 @@ kubernetes = [
 full = [
     "myllm[kube]", # Includes all kube dependencies
     "torch>=2.7.0",
-    "transformers>=4.53.2",
+    "transformers>=4.55.0",
     "transformer_engine[pytorch]>=2.5.0",
     # "flash-attn>=2.8.1", # needs to be installed with --no-build-isolation
 ]

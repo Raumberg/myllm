@@ -6,6 +6,8 @@ from pathlib import Path
 from typing import Any
 import enum
 
+from accelerate import PartialState
+
 
 logger = logging.getLogger(__name__)
 
@@ -42,11 +44,30 @@ def _to_dict_recursive(obj: Any) -> Any:
     except Exception:
         return f"<unserializable type: {type(obj).__name__}>"
 
+def get_run_dir(directory: str | Path) -> Path:
+    """Create and return a run directory with timestamp for logging.
+    
+    Args:
+        directory: Base directory where the run directory will be created
+        
+    Returns:
+        Path to the created run directory
+    """
+    if PartialState().is_main_process:
+        directory = Path(directory)
+        timestamp = datetime.now().strftime("%Y.%m.%d-%H:%M:%S")
+        run_dir = directory / ".run" / timestamp
+        run_dir.mkdir(parents=True, exist_ok=True)
+        logger.info("Created run directory: %s", run_dir)
+        return run_dir
+    return None
+
 
 class ConfigDumper:
     def __init__(self, output_dir: Path):
-        timestamp = datetime.now().strftime("%Y:%m:%d-%H:%M:%S")
-        self.run_dir = output_dir / ".run" / timestamp
+        # timestamp = datetime.now().strftime("%Y.%m.%d-%H:%M:%S")
+        # self.run_dir = output_dir / ".run" / timestamp
+        self.run_dir = output_dir
         self.run_dir.mkdir(parents=True, exist_ok=True)
         logger.info("Dumping run configs to %s", self.run_dir)
 

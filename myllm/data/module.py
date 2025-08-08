@@ -10,6 +10,7 @@ from typing import Any, Dict, Optional
 from datasets import load_dataset, load_from_disk
 from transformers import AutoTokenizer, DataCollatorForLanguageModeling
 from torch.utils.data import DataLoader
+from multiprocessing import cpu_count
 
 from myllm.config.schema import DataCfg, TrainingCfg
 from myllm.data.processors import get_processor
@@ -25,6 +26,7 @@ logger = logging.getLogger(__name__)
 class DataModule:
     def __init__(self, data_cfg: DataCfg, training_cfg: TrainingCfg, tokenizer: AutoTokenizer):
         self.data_cfg = data_cfg
+        self.processor_cfg = data_cfg.processor
         self.training_cfg = training_cfg
         self.tokenizer = tokenizer
 
@@ -39,14 +41,14 @@ class DataModule:
         ds_dict = self._load_dataset()
 
         processor = get_processor(
-            self.data_cfg.processor_type, self.data_cfg, self.training_cfg, self.tokenizer
+            self.processor_cfg.type, self.data_cfg, self.training_cfg, self.tokenizer
         )
 
         processed_splits: Dict[str, Any] = {}
         for split_name, split_set in ds_dict.items():
             processed_splits[split_name] = split_set.map(
                 processor,  # type: ignore[arg-type]
-                num_proc=None,
+                num_proc=cpu_count(),
                 remove_columns=split_set.column_names,
             )
 
@@ -95,11 +97,6 @@ class DataModule:
             self.tokenizer.chat_template = self.data_cfg.chat_template
 
         return self
-
-    # def sync_with_model(self, model: Any) -> "DataModule":
-    #     """Convenience chaining method to sync tokenizer with a model."""
-    #     self.tokenizer_wrapper.sync_with_model(model)
-    #     return self
 
     def get_train_dataloader(self, shuffle: bool = False, num_workers: int = 2) -> DataLoader:  # noqa: D401
         return DataLoader(

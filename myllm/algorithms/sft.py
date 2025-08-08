@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from transformers import TrainingArguments
+from transformers import TrainingArguments, AutoTokenizer
 from trl import SFTTrainer as HF_SFTTrainer
 from trl import SFTConfig
 
@@ -26,8 +26,8 @@ class SFTTrainer(BaseTrainer):
     ``TrainingArguments`` (e.g. *deepspeed* json config path).
     """
 
-    def __init__(self, model: Any, engine: Optional[Any], cfg: Any):  # noqa: D401
-        super().__init__(model, engine, cfg)
+    def __init__(self, model: Any, engine: Optional[Any], cfg: Any, tokenizer: AutoTokenizer):  # noqa: D401
+        super().__init__(model, engine, cfg, tokenizer)
 
         if cfg.model.cast_to_fp8 and (cfg.model.use_4bit or cfg.model.use_8bit):
             raise ValueError(
@@ -56,11 +56,6 @@ class SFTTrainer(BaseTrainer):
     def train(self, dataloader, *, resume_from: str | None = None):  # noqa: D401
         """Create underlying TRL trainer on first call and launch training."""
 
-        # Infer tokenizer if possible (not strictly needed for HF Trainer but useful later)
-        tokenizer = getattr(self.model, "tokenizer", None)
-        if tokenizer is None and hasattr(dataloader, "dataset"):
-            tokenizer = getattr(dataloader.dataset, "tokenizer", None)
-
         # get callbacks
         callbacks = self.default_callbacks(
             collate_fn=dataloader.collate_fn if hasattr(dataloader, "collate_fn") else None
@@ -72,7 +67,7 @@ class SFTTrainer(BaseTrainer):
             args=self.sft_args,
             train_dataset=dataloader.dataset,
             data_collator=dataloader.collate_fn if callable(dataloader.collate_fn) else None,
-            processing_class=tokenizer,
+            processing_class=self.tokenizer,
             peft_config=self._peft_cfg,
             callbacks=callbacks,
         )

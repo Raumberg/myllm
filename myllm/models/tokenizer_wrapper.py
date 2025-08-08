@@ -26,11 +26,8 @@ class TokenizerWrapper:
         """Load and properly configure tokenizer.
         
         Args:
-            tokenizer_name: HF model name or local path
-            pad_token: Explicit pad token to add, e.g. '<|pad|>'
-            add_special_tokens: Dict of special tokens to add
-            chat_template: Chat template to set
-            model_max_length: Max sequence length
+            model_cfg: PyDantic model config
+            data_cfg: PyDantic data config
             **hf_kwargs: Additional kwargs for AutoTokenizer.from_pretrained
         """
         self.tokenizer_name = model_cfg.name
@@ -47,10 +44,12 @@ class TokenizerWrapper:
         # Set model_max_length if provided
         if self.max_length:
             self.tokenizer.model_max_length = self.max_length
+            logger.info(f'Setting new model_max_length to: {self.max_length}')
 
         # Set chat template if provided, othervise infer from base tokenizer
         if self.chat_template:
             self.tokenizer.chat_template = self.chat_template
+            logger.info(f'Setting new chat template to: {self.chat_template}')
 
         # Add any custom special tokens first
         if self.add_special_tokens:
@@ -60,7 +59,7 @@ class TokenizerWrapper:
         self._log_tokenizer_info()
 
     def _setup_special_tokens(self):
-        num_added = self.tokenizer.add_special_tokens(self.add_special_tokens)
+        num_added = self.tokenizer.add_special_tokens({'additional_special_tokens': self.add_special_tokens})
         self._tokens_added += num_added
         if num_added > 0:
             logger.info(f"Added {num_added} special tokens: {self.add_special_tokens}")
@@ -119,7 +118,7 @@ class TokenizerWrapper:
             and self.tokenizer.pad_token_id != model.config.pad_token_id
         ):
             model.config.pad_token_id = self.tokenizer.pad_token_id
-            logger.debug(f"Synced model.config.pad_token_id = {self.tokenizer.pad_token_id}")
+            logger.info(f"Synced model.config.pad_token_id = {self.tokenizer.pad_token_id}")
             
         # Sync generation config if it exists
         if hasattr(model, 'generation_config'):
@@ -145,6 +144,7 @@ class TokenizerWrapper:
     @property
     def vocab_size_changed(self) -> bool:
         """Check if vocabulary size was changed (need to resize model embeddings)."""
+        logger.info('Vocabluary size of the model changed!')
         return self._tokens_added > 0
 
     def __getattr__(self, name):

@@ -36,6 +36,7 @@ class BaseProcessor(Protocol):
 class _ProcessorImpl:
     def __init__(self, data_cfg: DataCfg, training_cfg: TrainingCfg, tokenizer: AutoTokenizer):
         self.data_cfg = data_cfg
+        self.processor_cfg = data_cfg.processor
         self.training_cfg = training_cfg
         self.tokenizer = tokenizer
 
@@ -88,7 +89,7 @@ class DefaultProcessor(_ProcessorImpl):
     """Single message processor (user prompt, optional system)."""
 
     def __call__(self, row: Dict[str, Any]):  # noqa: D401
-        message = row[self.data_cfg.text_field]
+        message = row[self.processor_cfg.text_field]
         if isinstance(message, list):
             message = message[-1]  # Use last message in conversation
 
@@ -104,7 +105,7 @@ class HistoryProcessor(_ProcessorImpl):
         self.history_turns = history_turns
 
     def __call__(self, row: Dict[str, Any]):  # noqa: D401
-        history: List[Dict[str, str]] = row[self.data_cfg.text_field]
+        history: List[Dict[str, str]] = row[self.processor_cfg.text_field]
 
         # Optionally truncate to last k turns
         if self.history_turns is not None and len(history) > self.history_turns:
@@ -118,8 +119,8 @@ class GRPOProcessor(_ProcessorImpl):
     """Processor for GRPO tasks that adds reflection and extracts answers."""
 
     def __call__(self, row: Dict[str, Any]):  # noqa: D401
-        reflection_chance = getattr(self.data_cfg, "reflection_chance", 0.0)
-        reflection_prompt = getattr(self.data_cfg, "reflection_prompt", None)
+        reflection_chance = getattr(self.processor_cfg, "reflection_chance", 0.0)
+        reflection_prompt = getattr(self.processor_cfg, "reflection_prompt", None)
 
         system_prompt = self.data_cfg.system_prompt or ""
 
@@ -131,9 +132,9 @@ class GRPOProcessor(_ProcessorImpl):
         result = {
             "prompt": [
                 {'role': 'system', 'content': system_prompt},
-                {'role': 'user', 'content': row[self.data_cfg.problem_field]} 
+                {'role': 'user', 'content': row[self.processor_cfg.problem_field]} 
             ],
-            "answer": row[self.data_cfg.answer_field]
+            "answer": row[self.processor_cfg.answer_field]
         }
 
         return result
@@ -148,8 +149,8 @@ class PairProcessor(_ProcessorImpl):
     """
 
     def __call__(self, row: Dict[str, Any]):  # noqa: D401
-        prompt = row[self.data_cfg.problem_field]
-        answer = row[self.data_cfg.answer_field]
+        prompt = row[self.processor_cfg.problem_field]
+        answer = row[self.processor_cfg.answer_field]
 
         messages = self._merge_system([
             {"role": "user", "content": prompt},

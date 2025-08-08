@@ -12,7 +12,7 @@ def test_fused_rms_norm_compilation():
     Test if the FusedRMSNorm CUDA kernel can be compiled and loaded successfully.
     """
     try:
-        from myllm.kernels import load_rms_norm_kernel
+        from myllm.kerr import load_rms_norm_kernel
         kernel = load_rms_norm_kernel()
         assert kernel is not None, "Kernel module should not be None"
         assert hasattr(kernel, "forward"), "Kernel module should have a 'forward' function"
@@ -24,7 +24,7 @@ def test_fused_rms_norm_forward_and_backward():
     """
     Test the forward and backward pass of the custom FusedRMSNorm kernel against a reference implementation.
     """
-    from myllm.kernels.fused_rms_norm import FusedRMSNorm
+    from myllm.kerr.fused_rms_norm import FusedRMSNorm
     from transformers.models.llama.modeling_llama import LlamaRMSNorm
 
     hidden_size = 128
@@ -71,7 +71,7 @@ def test_fused_rms_norm_gradcheck():
     """
     Perform a gradcheck to numerically verify the correctness of the backward pass.
     """
-    from myllm.kernels.fused_rms_norm import RMSNormFunction
+    from myllm.kerr.fused_rms_norm import RMSNormFunction
 
     hidden_size = 16
     batch_size = 2
@@ -91,7 +91,7 @@ def test_fused_swiglu_compilation():
     Test if the FusedSwiGLU CUDA kernel can be compiled and loaded successfully.
     """
     try:
-        from myllm.kernels import load_swiglu_kernel
+        from myllm.kerr import load_swiglu_kernel
         kernel = load_swiglu_kernel()
         assert kernel is not None, "Kernel module should not be None"
         assert hasattr(kernel, "forward"), "Kernel module should have a 'forward' function"
@@ -104,7 +104,7 @@ def test_fused_swiglu_forward_pass():
     """
     Test the forward pass of the custom FusedSwiGLU kernel against the PyTorch equivalent.
     """
-    from myllm.kernels.fused_swiglu import FusedSwiGLU
+    from myllm.kerr.fused_swiglu import FusedSwiGLU
 
     in_features = 128
     hidden_features = 256

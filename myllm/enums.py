@@ -21,4 +21,5 @@ class AlgorithmType(str, Enum):
     PPO = "ppo"
     DPO = "dpo"
     DISTILL = "distill"
-    GRPO = "grpo" 
+    GRPO = "grpo"
+    DFT = "dft"

@@ -91,9 +91,24 @@ class BaseTrainer(ABC):
             disable_tqdm=self.cfg.logging.disable_tqdm,
             use_liger_kernel=self.train_cfg.use_liger_kernel,
             save_strategy=self.train_cfg.save_strategy,
-            save_steps=self.train_cfg.save_steps
-            # optim=self.train_cfg.optimizer_type # this shit no more accepts pure optim class, or maybe I'm dumb and didn't figure it out yet
+            save_steps=self.train_cfg.save_steps,
+            save_total_limit=self.train_cfg.save_total_limit or 3,
         )
+
+        # Optimizer mapping: map our config value to HF Trainer's `optim` strings
+        opt_type_conf = (self.train_cfg.optimizer_type or "").lower()
+        optim_map = {
+            "adamw": "adamw_torch",                  # default torch AdamW
+            "adamw_torch": "adamw_torch",
+            "adamw_torch_fused": "adamw_torch_fused",# default GPU deepspeed optimizer
+            "adamw_hf": "adamw_hf",
+            "adamw_apex_fused": "adamw_apex_fused",
+            "adafactor": "adafactor",
+            "adamw_8bit": "adamw_8bit",              # requires bitsandbytes
+            "paged_adamw_8bit": "paged_adamw_8bit",  # requires bitsandbytes + paged
+        }
+        if opt_type_conf in optim_map:
+            base_kwargs["optim"] = optim_map[opt_type_conf]
 
         # add extra kwargs if any 
         base_kwargs.update(extra)

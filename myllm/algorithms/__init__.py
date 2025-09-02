@@ -14,6 +14,7 @@ _ALGO_REGISTRY: Dict[AlgorithmType, str] = {
     AlgorithmType.DPO: "myllm.algorithms.distill",
     AlgorithmType.DISTILL: "myllm.algorithms.distill",
     AlgorithmType.GRPO: "myllm.algorithms.grpo",
+    AlgorithmType.DFT: "myllm.algorithms.dft",
 }
 
 __all__ = ["get_algorithm", "get_trainer_class"]

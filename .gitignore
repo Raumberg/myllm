@@ -19,9 +19,10 @@ fp8-research.md
 bin
 .env
 .deepspeed_env
-nccl-tests 
+nccl-tests/ 
 .kubernetes/orchestra/kubernetes-manifest.yaml
 hostfile
 scripts
 configs/attn-signs
 test-model.ipynb
+pretrained/

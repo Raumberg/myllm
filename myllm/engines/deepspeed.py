@@ -33,9 +33,26 @@ class DeepSpeedConfigTuner:
         self.ds_cfg: Dict[str, Any] = {}
         self.run_dir = Path(cfg.training.output_dir) / ".run" # for flops profiler 
 
+    def apply_overrides(self, overrides: Dict[str, Any]):
+        """Apply user overrides from cfg.engine.override (YAML is king)"""
+        if isinstance(overrides, dict) and overrides:
+            def deep_merge(dst, src):
+                for k, v in src.items():
+                    if isinstance(v, dict) and isinstance(dst.get(k), dict):
+                        deep_merge(dst[k], v)
+                    else:
+                        dst[k] = v
+            deep_merge(self.ds_cfg, overrides)
+
     def build(self) -> Dict[str, Any]:
         """Build the final, tuned DeepSpeed configuration."""
         self._load_base_config()
+
+        # Apply user overrides from cfg.engine.override (YAML is king)
+        try:
+            self.apply_overrides(getattr(self.cfg.engine, "override", {}) or {})
+        except Exception:
+            logger.warning("Failed to apply engine.override overrides; continuing with base config")
 
         # Chain all the tuning steps
         self._tune_batch_size()

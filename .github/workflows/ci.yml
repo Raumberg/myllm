@@ -60,6 +60,6 @@ jobs:
           file: ./local-dockerfile
           push: false # Do not push the image for now
           tags: myllm:latest
-          # Use GitHub Actions cache for better performance
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # Disable cache for CI to avoid timeout issues during cache export
+          # cache-from: type=gha
+          # cache-to: type=gha,mode=max

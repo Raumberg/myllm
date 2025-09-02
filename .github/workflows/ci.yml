@@ -57,7 +57,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./Dockerfile
+          file: ./local-dockerfile
           push: false # Do not push the image for now
           tags: myllm:latest
           # Use GitHub Actions cache for better performance

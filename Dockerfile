@@ -1,6 +1,7 @@
 # 1. Base Image: Use the official NVIDIA PyTorch container.
 # It includes Python, CUDA, cuDNN, and all necessary bindings.
 # Provided by Ilya Kryukov, NVIDIA employee.
+# Does not included in CI, because it is too large to download (~15GB)
 FROM nvcr.io/nvidia/pytorch:25.06-py3
 # ================================================ #
 

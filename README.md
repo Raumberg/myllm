@@ -21,7 +21,8 @@
 ---
 ## Documentation
 Documentation is available at:  
-(Attention Signs Center website)[https://raumberg.github.io/attn-signs-center/docs/]
+**Attention Signs Center website**  
+[https://raumberg.github.io/attn-signs-center/docs/]
 
 ---
 ## ✨ Highlights
